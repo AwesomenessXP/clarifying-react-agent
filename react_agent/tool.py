@@ -109,7 +109,7 @@ class Tool:
                 raise TypeError(
                     f"\n❌ Invalid parameter type in tool `{fn.__name__}`\n"
                     f"   → Parameter `{name}` has unsupported type: `{anno.__name__}`\n\n"
-                    f"   Tools can only accept JSON-serializable argument types:\n"
+                    f"   Currently, tools can only accept JSON-serializable argument types:\n"
                     f"     • int\n"
                     f"     • float\n"
                     f"     • str\n"
@@ -128,19 +128,25 @@ class Tool:
 
             properties[name] = prop
 
+        required = [
+            name
+            for name, param in sig.parameters.items()
+            if name != "self" and param.default is inspect._empty
+        ]
+
         schema = {
             "type": "object",
             "title": f"{fn.__name__}Arguments",
             "properties": properties,
+            "required": required,
         }
         return schema
 
 def _unwrap(func: Callable) -> Callable:
-    """Unwrap the function callable to get to the original function."""
     seen = set()
-    if hasattr(func, "__wrapped__") and func not in seen:
+    while hasattr(func, "__wrapped__") and func not in seen:
         seen.add(func)
-        func = func.__wrapped__  # type: ignore[attr-defined]
+        func = func.__wrapped__
     return func
 
 def _is_async_callable(func: Callable) -> bool:

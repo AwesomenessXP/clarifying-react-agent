@@ -22,7 +22,7 @@ def hello_world(num_times: int, array: list[int] =[1,2,3], my_class: MyClass = M
     return hello_world_list
 
 @tool
-async def async_hello_world(num_times: int, array: list[int] = [1,3]):
+async def async_hello_world(num_times: int, array: list[int] = [1,3], not_required: str = "default"):
     """
     This will asynchronously print Hello, World! num_times times.
     """
@@ -34,12 +34,12 @@ async def async_hello_world(num_times: int, array: list[int] = [1,3]):
         hello_world_list.append("Hello, World!")
     return hello_world_list
 
-async def wrapped_async_in_async(num_times: int, array: list[int] = []):
+async def wrapped_async_in_async(num_times: int):
     """
     This will call an async function from a sync function.
     """
     print("entering async function that calls async function")
-    result = await async_hello_world(num_times, array)
+    result = await async_hello_world(num_times)
     return result
 
 async def main():
