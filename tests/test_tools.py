@@ -8,9 +8,8 @@ class MyClass:
     def __init__(self, value: int):
         self.value = value
 
-# This will return a compile-time error
 @tool
-def hello_world(num_times: int, array: list[int] =[1,2,3], my_class: MyClass = MyClass(10)):
+def hello_world(num_times: int, array: list[int] =[1,2,3]):
     """
     This will print Hello, World! num_times times.
     """
@@ -48,11 +47,14 @@ async def main():
     except Exception as e:
         print("Error calling hello_world: ", str(e))
 
+    # async_hello_world is NOT a funtion, but a Tool instance that behaves like a function
+    # - this is becausel tool_instance.__call__ is the underlying code of tool_instance()
+    # - the tool instance returns a raw value, just like a normal function would!
     async_hello_world_result = await async_hello_world(num_times=2)
-    print("async_hello_world_result args schema: ", json.dumps(async_hello_world_result.args_schema, indent=2))
-    print("async_hello_world_result content: ", async_hello_world_result.result.content)
+    print("async_hello_world_result args schema: ", json.dumps(async_hello_world.args_schema, indent=2))
+    print("async_hello_world_result content: ", async_hello_world_result)
 
     wrapped_async_result = await wrapped_async_in_async(num_times=2)
-    print("wrapped_async_result: ", wrapped_async_result.result.content)
+    print("wrapped_async_result: ", wrapped_async_result)
 
 asyncio.run(main())

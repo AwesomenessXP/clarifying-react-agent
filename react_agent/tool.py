@@ -18,11 +18,32 @@ class Tool:
         self.func = func
         self.name = name or func.__name__
         self.description = description or func.__doc__ or "No description provided."
-        self.result = result
+        self.result: ToolResult | None = None
+        self.is_async = _is_async_callable(func)
         self.args_schema = self._build_args_schema(func)
 
-    def __call__(self, *args, **kwargs) -> Any:
-        return self.func(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        # sync tool
+        if not self.is_async:
+            try:
+                value = self.func(*args, **kwargs)
+                self.result = ToolResult(content=value)
+                return value
+            except Exception as e:
+                self.result = ToolResult(content=None, error=e)
+                raise
+
+        # async tool
+        async def runner():
+            try:
+                value = await self.func(*args, **kwargs)
+                self.result = ToolResult(content=value)
+                return value
+            except Exception as e:
+                self.result = ToolResult(content=None, error=e)
+                raise
+
+        return runner()
 
     def _resolve_base_type(self, anno):
         """
@@ -109,14 +130,23 @@ class Tool:
                 raise TypeError(
                     f"\n❌ Invalid parameter type in tool `{fn.__name__}`\n"
                     f"   → Parameter `{name}` has unsupported type: `{anno.__name__}`\n\n"
-                    f"   Currently, tools can only accept JSON-serializable argument types:\n"
+                    f"   Currently, tools can only accept JSON-serializable argument types.\n\n"
+                    f"   ✅ Supported types:\n\n" 
                     f"     • int\n"
                     f"     • float\n"
                     f"     • str\n"
                     f"     • bool\n"
                     f"     • list[T]\n"
                     f"     • dict[str, T]\n\n"
-                    f"   💡 Hint: Add a proper type annotation, e.g. `list[int]`, `dict[str, str]`.\n"
+                    f"   ❌ Unsupported types:\n"
+                    f"     • Custom classes (e.g., MyClass)\n"
+                    f"     • Dataclasses or Pydantic models\n"
+                    f"     • Enum values\n"
+                    f"     • tuple[...] or set[...]\n"
+                    f"     • Callable or function types\n"
+                    f"     • list[MyClass] or dict[str, MyClass]\n\n"
+                    f"   💡 Hint: Convert custom objects to JSON-compatible structures, or annotate using\n"
+                    f"      supported types like `list[int]` or `dict[str, str]`.\n"
                 )
 
             else:
@@ -159,44 +189,5 @@ def _is_async_callable(func: Callable) -> bool:
     return inspect.iscoroutinefunction(call)
 
 def tool(func):
-    # preserve the original function's metadata
-    is_async = _is_async_callable(func)
-    if is_async:
-        @functools.wraps(func)
-        # pass the args to the function
-        async def async_wrapper(*args, **kwargs):
-            try :
-                result = await func(*args, **kwargs)
-                return Tool(
-                    func=func, 
-                    name=func.__name__, 
-                    description=func.__doc__, 
-                    result=ToolResult(content=result)
-                )
-            except Exception as e:
-                return Tool(
-                    func=func, 
-                    name=func.__name__, 
-                    description=func.__doc__, 
-                    result=ToolResult(content=None, error=e)
-                )
-        return async_wrapper
-    else:
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            try:
-                result = func(*args, **kwargs)
-                return Tool(
-                    func=func, 
-                    name=func.__name__, 
-                    description=func.__doc__, 
-                    result=ToolResult(content=result)
-                )
-            except Exception as e:
-                return Tool(
-                    func=func, 
-                    name=func.__name__, 
-                    description=func.__doc__, 
-                    result=ToolResult(content=None, error=e)
-                )
-        return sync_wrapper
+    tool_obj = Tool(func=func, name=func.__name__, description=func.__doc__)
+    return tool_obj

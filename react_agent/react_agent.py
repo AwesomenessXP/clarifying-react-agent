@@ -12,8 +12,8 @@ class ReActAgent:
         # Add logic to register the tools
         return [tool.name for tool in tools]
     
-    def _run_react_loop(self, query: str) -> str:
-        # Placeholder for the ReAct loop logic
+    def _run_react_graph(self, query: str) -> str:
+        # Placeholder for the ReAct graph logic
         return "This is a placeholder response from ReActAgent."
     
     # def _clarify_query(self, query: str) -> str:
