@@ -3,6 +3,9 @@ import inspect
 from typing import Any, Callable
 from typing import get_type_hints, get_origin, get_args
 from typing import Union, Annotated
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from utils.is_async_callable import _is_async_callable
 
 PRIMITIVES = (int, float, str, bool)
 
@@ -171,22 +174,6 @@ class Tool:
             "required": required,
         }
         return schema
-
-def _unwrap(func: Callable) -> Callable:
-    seen = set()
-    while hasattr(func, "__wrapped__") and func not in seen:
-        seen.add(func)
-        func = func.__wrapped__
-    return func
-
-def _is_async_callable(func: Callable) -> bool:
-    """Check if the original function is asynchronous."""
-    f = _unwrap(func)
-    if inspect.iscoroutinefunction(f):
-        return True
-    # Handle objects with async __call__
-    call = getattr(f, "__call__", None)
-    return inspect.iscoroutinefunction(call)
 
 def tool(func):
     tool_obj = Tool(func=func, name=func.__name__, description=func.__doc__)

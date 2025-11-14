@@ -1,5 +1,7 @@
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from typing import Callable
-import json
+from utils.is_async_callable import _is_async_callable
 
 class NodeList:
     def __init__(self, nodes: list['Node'] = None):
@@ -16,6 +18,12 @@ class Node:
         self.id = str(func.__name__)
         self.callable = func
         self.max_retries = max_retries
+
+        if _is_async_callable(func):
+            self.is_async = True
+            print("Node initialized with async callable: ", func.__name__)
+        else:
+            self.is_async = False
 
     def get_id(self) -> str:
         return self.id
