@@ -218,12 +218,6 @@ class Graph:
         # ITERATION N+1:
         # - TRICKY: handle convergence later, can be append only for now
         # - prev nodes could have sent to the same message -> have a unique identifier so you know who sent the message
-        # # Get the first node
-        # starting_node = self.adjacency_list.get("START")
-        # if starting_node is None:
-        #     return Exception(f"Unable to compile the graph")
-        # starting_node_id = starting_node[0]
-        # print("starting_node", starting_node_id)
 
         # TODO: be able to traverse nodes serially
         while True:
@@ -259,14 +253,22 @@ class Graph:
                 # FINISHED: be able to make node functions and pass global state as a param
                 #
                 # TODO: CREATE BRANCHING LOGIC
-                # 1. implement router functions, add to Graph class
-                # 1.5 keep registry of router functions
+                # TODO: 1. implement router nodes, add to Graph class
+                # TODO: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
+                # TODO: 1.2 if the current node has a router node as a child, pass state to it and execute callable
+                # TODO: 1.2 (cont) activate the node in callable res -> add to internal buffer (if not init node) -> add to active nodes list at barrier
+                # TODO: 1.3 if the current node has more than one child node -> handle parallelism later on
+                # TODO: 1.4 if the current node has one child -> add to internal buffer (if not init node) -> add to active nodes list at barrier
 
                 # TODO: activate next superstep's nodes
                 # 2. visit node children
                 # 2.5 call router function
                 # 3. determine next active node from router function result
                 # 4. If no router, set all children to active
+
+                # TODO: be able to detect and handle cycles, and a max recursion limit
+                # TODO: be able to handle merge or append to state if there is parallelism
+                # TODO: implement termination
             
                 self.run_state.step_count += 1
                 continue

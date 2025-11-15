@@ -16,6 +16,7 @@ def hello_world(state: Dict):
 def good_bye(state: Dict):
     string = "Goodbye world"
     print(string)
+    print("state in good_bye(): ", state)
     return {
         "result": string
     }
@@ -23,6 +24,7 @@ def good_bye(state: Dict):
 def hello_again(state: Dict):
     string = "Hello again!"
     print(string)
+    print("state in hello_again(): ", state)
     return {
         "result": string
     }
@@ -31,6 +33,7 @@ async def async_hello(state: Dict):
     await asyncio.sleep(0.1)
     string = "Hello from async function!"
     print(string)
+    print("state in async_hello(): ", state)
     return {
         "result": string
     }
@@ -51,8 +54,7 @@ def main():
 
     graph.add_edge("START", node1)
     graph.add_edge(from_node=node1, to_node=node2)
-    graph.add_edge(from_node=node1, to_node=node3)
-    graph.add_edge(from_node=node2, to_node=node4)
+    graph.add_edge(from_node=node2, to_node=node3)
     graph.add_edge(from_node=node3, to_node=node4)
 
     print("graph adjacency list: ", json.dumps(graph.adjacency_list, indent=2))
