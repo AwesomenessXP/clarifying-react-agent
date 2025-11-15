@@ -5,6 +5,7 @@ from utils.is_async_callable import _is_async_callable
 from enum import Enum
 from typing import Dict, List
 from react_agent.message import Message
+import time
 
 class NodeActiveStatus(Enum):
     ACTIVE = "ACTIVE"
@@ -26,7 +27,15 @@ class NodeStatus(Enum):
 
 class Node:
     def __init__(self, func: Callable, max_retries: int = 15, status: NodeStatus = NodeStatus.INITIALIZED):
-        self.id = str(func.__name__)
+        # Get the current time in nanoseconds as an integer
+        timestamp_ns = time.time_ns()
+        
+        # Get the function's name
+        func_name = str(func.__name__)
+        
+        # Combine them using an f-string
+        # Example format: "my_function_1701383345123456789"
+        self.id = f"{func_name}_{timestamp_ns}"
         self.callable = func
         self.max_retries = max_retries
         self.is_visited = False
