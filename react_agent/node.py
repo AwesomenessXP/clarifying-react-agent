@@ -12,16 +12,6 @@ class NodeActiveStatus(Enum):
 
     def __repr__(self):
         return f"NodeActiveStatus.{self.name}"
-
-class NodeList:
-    def __init__(self, nodes: List['Node'] = None):
-        self.nodes = nodes or []
-
-    def add_node(self, node: 'Node'):
-        self.nodes.append(node)
-
-    def get_nodes(self) -> List['Node']:
-        return self.nodes
     
 class NodeStatus(Enum):
     INITIALIZED = "INITIALIZED"
@@ -50,14 +40,49 @@ class Node:
 
     def __repr__(self):
         return f"Node(id={self.id}, callable={self.callable}, max_retries={self.max_retries}, is_visited={self.is_visited}, status={self.status})"
+    
+class BranchNode(Node):
+    """
+    WHAT BRANCH NODE SHOULD DO:
+
+    ---EXAMPLE FUNCTION DEFINITION---
+        def route_decision(state):
+            # Analyze the state, e.g., check the last LLM response
+            last_message = state['messages'][-1]
+            
+            if "final answer" in last_message.lower():
+                return "end_workflow" # This must match a path name
+            elif "call tool" in last_message.lower():
+                return "tool_node" # This must match a path name
+            else:
+                return "llm_node" # This must match a path name
+
+    ---EXAMPLE CONNECTING TO GRAPH---
+    builder.add_node("router", route_decision)
+    # ... other nodes added ...
+
+    builder.add_conditional_edges(
+        # From the 'router' node...
+        "router", 
+        # Use the 'route_decision' function to decide the next path
+        route_decision, 
+        # Map the function's return values to actual nodes/paths
+        {
+            "end_workflow": END,           # Go to END if router returns "end_workflow"
+            "tool_node": "run_tool_node",  # Go to run_tool_node if router returns "tool_node"
+            "llm_node": "call_llm_node",   # Go to call_llm_node if router returns "llm_node"
+        }
+    )
+
+    """
+    pass
 
 # Used internally in the engine 
 class NodeResult:
-    def __init__(self, status: NodeStatus, active_status: NodeActiveStatus, msgs: List[Message] = [], error: Exception = None):
+    def __init__(self, status: NodeStatus, msgs: List[Message] = [], error: Exception = None):
         self.status = status
-        self.active_status = active_status
         self.msgs = msgs
         self.error = error
 
     def __repr__(self):
-        return f"NodeResult(status={self.status}, active_status={self.active_status} msgs='{self.msgs}', error={self.error})"
+        return f"NodeResult(status={self.status}, msgs='{self.msgs}', error={self.error})"

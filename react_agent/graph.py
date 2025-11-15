@@ -1,13 +1,21 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from typing import Callable
-from react_agent.node import Node, NodeList, _is_async_callable, NodeStatus, NodeResult, NodeActiveStatus
+from react_agent.node import (
+    Node, 
+    NodeStatus, 
+    NodeResult, 
+    NodeActiveStatus
+)
 import asyncio
 from typing import Any
 from typing import Dict, List
 from react_agent.message import Message
 
-class EngineState:
+class RunState:
+    """
+    Internal facing class for coordinating state between nodes
+    """
     def __init__(self):
         self.step_count = 0
 
@@ -15,19 +23,47 @@ class EngineState:
         self.inbox_msgs: List[List[Message]] = []
         self.outbox_msgs: List[List[Message]] = []
         self.nodes_active_status: Dict[str, NodeStatus] = {}
+
+class State:
+    """
+    User facing class for managing global state
+    - the state dict must be immutable and read-only to the user
+    - only the graph has access to the methods to update state
+    - transform each message to a dict and map to the state dict
+    """
+    def __init__(self, num: int = 0):
+        self.__state = {}
+        self.__state["hey"] = num
+
+    # --- Public View Properties (No Setters) ---
+
+    @property
+    def state(self) -> Dict:
+        """
+        Allows viewing the state, but not setting it externally.
+        Updating the state creates a new instance -> don't modify the original state at all
+        """
+        return self.__state.copy()
+    
+    def _update_state(self, num: int) -> 'State':
+        """
+        Returns a new state instance to avoid mutating curr state
+        """
+        new_data = self.__state.copy()
+        new_data["hey"] = num
+        return State(num)
     
 class Graph:
     def __init__(self):
-        self.node_list = NodeList()
         self.adjacency_list = {}
         self.node_registry = {}
-        self.engine_state = EngineState()
+        self.run_state = RunState()
+        self.state = State()
 
     def add_node(self, node: Node):
         # Ensure the node doesn't already exist
         if self.node_registry.get(node.id) is not None:
             raise ValueError(f"Node with callable {node} already exists in the node list.")
-        self.node_list.add_node(node)
         self.node_registry[node.id] = node
         self.adjacency_list[node.id] = []
 
@@ -36,8 +72,7 @@ class Graph:
         if isinstance(from_node, str) and from_node == "START":
             if self.adjacency_list.get("START") is not None:
                 raise ValueError(f"ERROR: another node has already been initialized!")
-            self.adjacency_list["START"] = []
-            self.adjacency_list["START"].append(to_node.id)
+            self.adjacency_list["START"] = to_node.id
             return
         elif isinstance(from_node, str) and from_node != "START":
             raise ValueError(f"ERROR: string can only be 'START'")
@@ -58,14 +93,15 @@ class Graph:
 
     def get_node_by_id(self, node_id: str) -> Node | None:
         # Returns the actual node instance
-        for node in self.node_list.get_nodes():
-            print("node id: ", node.id)
-            if str(node.id) == node_id:
-                return node
+        if self.node_registry.get(node_id) is not None:
+            return self.node_registry.get(node_id)
         raise ValueError(f"Node with id {node_id} not found in the graph.")
 
     def get_all_nodes(self) -> list[Node]:
-        return self.node_list.get_nodes()
+        nodes = []
+        for node_id in self.node_registry:
+            nodes.append(self.node_registry[node_id])
+        return nodes
     
     def get_node_callable(self, node_id: str) -> Callable:
         if self.node_registry.get(node_id) is not None:
@@ -90,7 +126,7 @@ class Graph:
         node.status = NodeStatus.RUNNING
         try:
             func = self.get_node_callable(node.id)
-            if _is_async_callable(func):
+            if node.is_async:
                 res = asyncio.run(func())
             else:
                 res = func()
@@ -98,7 +134,6 @@ class Graph:
             node.is_visited = True
             return NodeResult(
                 status = node.status,
-                active_status=node.status,
                 msgs=[
                     Message(
                         node.id,
@@ -111,17 +146,27 @@ class Graph:
             node.is_visited = True
             return NodeResult(
                 status = node.status,
-                active_status=node.status,
                 msgs=[
                     Message(
                         node.id,
-                        content = f"ERROR: {str(e)}"
+                        content = {
+                            "INTERNAL_NODE_ERROR": f"{str(e)}"
+                        }
                     )
                 ],
                 error=e
             )
+        
+    def update_active_status(self, node: Node) -> NodeActiveStatus:
+        curr_node_status = node.status
+        new_active_status = None
+        match curr_node_status:
+            case NodeStatus.SUCCESS | NodeStatus.TERMINATED:
+                new_active_status = NodeActiveStatus.INACTIVE
+            case _:
+                new_active_status = NodeActiveStatus.ACTIVE
+        return new_active_status
 
-    
     def compile(self):
         # This is where the active node passes information about what nodes to activate in the future
         # ITERATION 0:
@@ -131,6 +176,7 @@ class Graph:
         # - depending on node res, update status, then pass current node state
         # - pass node res to outbox_msgs
         # - pass current node errors -> handle errors later
+        # - visit children and see which nodes to activate in the next superstep
         # 
         # ITERATION N:
         # - set node status to running
@@ -154,32 +200,45 @@ class Graph:
         # TODO: be able to traverse nodes serially
         while True:
             # Runs the initial step
-            if self.engine_state.step_count == 0:
+            if self.run_state.step_count == 0:
                 # find and execute the first node
-                init_node_ids = self.adjacency_list.get("START")
-                init_node = self.get_node_by_id(init_node_ids[0])
-                self.engine_state.nodes_active_status[init_node.id] = NodeActiveStatus.ACTIVE
-                print("active nodes: ", self.engine_state.nodes_active_status)
+                init_node_id = self.adjacency_list.get("START")
+                init_node = self.get_node_by_id(init_node_id)
+                self.run_state.nodes_active_status[init_node.id] = NodeActiveStatus.ACTIVE
+                print("active nodes: ", self.run_state.nodes_active_status)
 
                 print("status: ", init_node.status)
                 res = self.run_node_callable(init_node)
                 print("status: ", init_node.status)
                 print("res: ", res)
 
-                # update the active / inactive nodes lists
-                node_status = init_node.status
-                match node_status:
-                    case NodeStatus.SUCCESS | NodeStatus.TERMINATED:
-                        self.engine_state.nodes_active_status[init_node.id] = NodeActiveStatus.INACTIVE
-                    case _:
-                        self.engine_state.nodes_active_status[init_node.id] = NodeActiveStatus.ACTIVE
+                # update the active / inactive nodes lists based on the node result
+                new_active_status = self.update_active_status(init_node)
+                self.run_state.nodes_active_status[init_node.id] = new_active_status
                 
                 # Pass node res to global outbox_msgs buffer
                 # Since only one node is active in the beginning, we can write directly to global
-                self.engine_state.outbox_msgs.append(res.msgs)
-                print("outbox msgs: ", self.engine_state.outbox_msgs)
-                print("active nodes: ", self.engine_state.nodes_active_status)
+                self.run_state.outbox_msgs.append(res.msgs)
+                print("outbox msgs: ", self.run_state.outbox_msgs)
+                print("active nodes: ", self.run_state.nodes_active_status)
+
+                new_state = self.state._update_state(1)
+
+                print("old state from graph: ", self.state.state)
+                print("new state from graph: ", new_state.state)
+
+                # TODO: create global state dict and initialize only when compile() runs -> each node needs a way to look at state
+                # TODO: be able to make node functions and pass global state as a param
+                #
+                # TODO: CREATE BRANCHING LOGIC
+                # 1. implement router functions, add to Graph class
+                # 1.5 keep registry of router functions
+                # 2. visit node children
+                # 2.5 call router function
+                # 3. determine next active node from router function result
+                # 4. If no router, set all children to active
+            
+                self.run_state.step_count += 1
+                continue
+
             break
-
-
-

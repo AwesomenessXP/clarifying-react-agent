@@ -7,23 +7,31 @@ import json
 def hello_world():
     string = "Hello, world!"
     print(string)
-    return string
+    return {
+        "result": string
+    }
 
 def good_bye():
     string = "Goodbye world"
     print(string)
-    return string
+    return {
+        "result": string
+    }
 
 def hello_again():
     string = "Hello again!"
     print(string)
-    return string
+    return {
+        "result": string
+    }
 
 async def async_hello():
     await asyncio.sleep(0.1)
     string = "Hello from async function!"
     print(string)
-    return string
+    return {
+        "result": string
+    }
 
 def main():
     graph = Graph()
@@ -41,6 +49,11 @@ def main():
     graph.add_edge(from_node=node1, to_node=node3)
     graph.add_edge(from_node=node2, to_node=node4)
     graph.add_edge(from_node=node3, to_node=node4)
+
+    new_state = graph.state._update_state(1)
+
+    print("old state from user: ", graph.state.state)
+    print("new state from user: ", new_state.state)
 
     print("graph adjacency list: ", json.dumps(graph.adjacency_list, indent=2))
 
