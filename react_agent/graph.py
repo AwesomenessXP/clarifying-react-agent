@@ -11,6 +11,7 @@ import asyncio
 from typing import Any
 from typing import Dict, List
 from react_agent.message import Message
+import inspect
 
 class RunState:
     """
@@ -31,9 +32,10 @@ class State:
     - only the graph has access to the methods to update state
     - transform each message to a dict and map to the state dict
     """
-    def __init__(self, num: int = 0):
-        self.__state = {}
-        self.__state["hey"] = num
+    def __init__(self, state: Dict):
+        if not isinstance(state, Dict):
+            raise TypeError(f"Expected 'state' to be a dictionary, but received: {type(state)}")
+        self.__state = state
 
     # --- Public View Properties (No Setters) ---
 
@@ -45,20 +47,22 @@ class State:
         """
         return self.__state.copy()
     
-    def _update_state(self, num: int) -> 'State':
+    # TODO: add a param to either append or overwrite the data to the global state
+    def _update_state(self, new_state: Dict) -> 'State':
         """
         Returns a new state instance to avoid mutating curr state
         """
-        new_data = self.__state.copy()
-        new_data["hey"] = num
-        return State(num)
+        return State(new_state)
+    
+    def __repr__(self):
+        return f"State(state='{self.state}')"
     
 class Graph:
-    def __init__(self):
+    def __init__(self, state: State):
         self.adjacency_list = {}
         self.node_registry = {}
         self.run_state = RunState()
-        self.state = State()
+        self.state = State(state.state)
 
     def add_node(self, node: Node):
         # Ensure the node doesn't already exist
@@ -67,7 +71,30 @@ class Graph:
         self.node_registry[node.id] = node
         self.adjacency_list[node.id] = []
 
+    def has_state_dict(self, node: Node):
+        # Ensure the to_node callable has a state dictionary parameter
+        node_callable_params = inspect.signature(node.callable).parameters
+
+        # Check if the first parameter's annotation is 'dict'
+        # We access the first item in the ordered dictionary directly if we only care about the first param
+        first_param = next(iter(node_callable_params.values()), None)
+
+        if first_param is None:
+            return False
+
+        # Check if the annotation is exactly the built-in dict type
+        if first_param.annotation not in (dict, Dict): # Check against both dict and typing.Dict
+            return False
+        
+        return True
+
     def add_edge(self, from_node: Node | str, to_node: Node):
+        if not isinstance(from_node, str) and not self.has_state_dict(from_node):
+            raise TypeError(f"Node must have a state dictionary as the first param")
+        
+        if not self.has_state_dict(to_node):
+            raise TypeError(f"Node must have a state dictionary as the first param")
+        
         # Check if this is the initial edge
         if isinstance(from_node, str) and from_node == "START":
             if self.adjacency_list.get("START") is not None:
@@ -83,11 +110,11 @@ class Graph:
         
         # Ensure the to_node exists in the registry
         if self.node_registry.get(to_node.id) is None:
-            raise ValueError(f"To node {to_node.id} does not exist in the node list.")
+            raise ValueError(f"Node {to_node.id} does not exist in the node list.")
 
         # Ensure the from_node exists in the registry
         if self.node_registry.get(from_node.id) is None:
-            raise ValueError(f"From node {from_node.id} does not exist in the node list.")
+            raise ValueError(f"Node {from_node.id} does not exist in the node list.")
         
         self.adjacency_list[from_node.id].append(to_node.id)
 
@@ -127,9 +154,9 @@ class Graph:
         try:
             func = self.get_node_callable(node.id)
             if node.is_async:
-                res = asyncio.run(func())
+                res = asyncio.run(func(self.state.state))
             else:
-                res = func()
+                res = func(self.state.state)
             node.status = NodeStatus.SUCCESS
             node.is_visited = True
             return NodeResult(
@@ -222,7 +249,7 @@ class Graph:
                 print("outbox msgs: ", self.run_state.outbox_msgs)
                 print("active nodes: ", self.run_state.nodes_active_status)
 
-                new_state = self.state._update_state(1)
+                new_state = self.state._update_state(res.msgs[0].body.get("content"))
 
                 print("old state from graph: ", self.state.state)
                 print("new state from graph: ", new_state.state)

@@ -1,31 +1,33 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import asyncio
-from react_agent.graph import Graph, Node
+from react_agent.graph import Graph, Node, State
+from typing import Dict
 import json
 
-def hello_world():
+def hello_world(state: Dict):
     string = "Hello, world!"
     print(string)
+    print("state in hello_world(): ", state)
     return {
         "result": string
     }
 
-def good_bye():
+def good_bye(state: Dict):
     string = "Goodbye world"
     print(string)
     return {
         "result": string
     }
 
-def hello_again():
+def hello_again(state: Dict):
     string = "Hello again!"
     print(string)
     return {
         "result": string
     }
 
-async def async_hello():
+async def async_hello(state: Dict):
     await asyncio.sleep(0.1)
     string = "Hello from async function!"
     print(string)
@@ -34,7 +36,10 @@ async def async_hello():
     }
 
 def main():
-    graph = Graph()
+    state = State({
+        "result": "Init"
+    })
+    graph = Graph(state)
     node1 = Node(func=hello_world)
     node2 = Node(func=good_bye)
     node3 = Node(func=hello_again)
@@ -49,11 +54,6 @@ def main():
     graph.add_edge(from_node=node1, to_node=node3)
     graph.add_edge(from_node=node2, to_node=node4)
     graph.add_edge(from_node=node3, to_node=node4)
-
-    new_state = graph.state._update_state(1)
-
-    print("old state from user: ", graph.state.state)
-    print("new state from user: ", new_state.state)
 
     print("graph adjacency list: ", json.dumps(graph.adjacency_list, indent=2))
 
