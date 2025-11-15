@@ -5,17 +5,25 @@ from react_agent.graph import Graph, Node
 import json
 
 def hello_world():
-    print("Hello, World!")
+    string = "Hello, world!"
+    print(string)
+    return string
 
 def good_bye():
-    print("Goodbye, World!")
+    string = "Goodbye world"
+    print(string)
+    return string
 
 def hello_again():
-    print("Hello again!")
+    string = "Hello again!"
+    print(string)
+    return string
 
 async def async_hello():
     await asyncio.sleep(0.1)
-    print("Hello from async function!")
+    string = "Hello from async function!"
+    print(string)
+    return string
 
 def main():
     graph = Graph()
