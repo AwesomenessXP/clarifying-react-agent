@@ -1,7 +1,8 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import asyncio
-from react_agent.graph import Graph, Node, State
+from react_agent.graph import Graph, State
+from react_agent.node import Node
 from typing import Dict
 import json
 

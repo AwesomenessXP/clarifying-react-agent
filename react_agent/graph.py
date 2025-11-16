@@ -2,10 +2,10 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from typing import Callable
 from react_agent.node import (
-    Node, 
     NodeStatus, 
     NodeResult, 
-    NodeActiveStatus
+    NodeActiveStatus,
+    BaseNode
 )
 import asyncio
 from typing import Any
@@ -65,14 +65,14 @@ class Graph:
         self.run_state = RunState()
         self.state = State(state.state)
 
-    def add_node(self, node: Node):
+    def add_node(self, node: BaseNode):
         # Validate the node doesn't already exist
         if self.node_registry.get(node.id) is not None:
             raise ValueError(f"Node with callable {node} already exists in the node list.")
         self.node_registry[node.id] = node
         self.adjacency_list[node.id] = []
 
-    def has_state_dict(self, node: Node):
+    def has_state_dict(self, node: BaseNode):
         # Validate the to_node callable has a state dictionary parameter
         node_callable_params = inspect.signature(node.callable).parameters
 
@@ -89,7 +89,7 @@ class Graph:
         
         return True
 
-    def add_edge(self, from_node: Node | str, to_node: Node):
+    def add_edge(self, from_node: BaseNode | str, to_node: BaseNode):
         # Validate the to_node exists in the registry
         if self.node_registry.get(to_node.id) is None:
             raise ValueError(f"Node {to_node.id} hasn't been added to the graph yet")
@@ -120,13 +120,13 @@ class Graph:
         
         self.adjacency_list[from_node.id].append(to_node.id)
 
-    def get_node_by_id(self, node_id: str) -> Node | None:
+    def get_node_by_id(self, node_id: str) -> BaseNode | None:
         # Returns the actual node instance
         if self.node_registry.get(node_id) is not None:
             return self.node_registry.get(node_id)
         raise ValueError(f"Node with id {node_id} not found in the graph.")
 
-    def get_all_nodes(self) -> list[Node]:
+    def get_all_nodes(self) -> list[BaseNode]:
         nodes = []
         for node_id in self.node_registry:
             nodes.append(self.node_registry[node_id])
@@ -151,7 +151,7 @@ class Graph:
                 parents_count += 1
         return parents_count
     
-    def run_node_callable(self, node: Node) -> NodeResult:
+    def run_node_callable(self, node: BaseNode) -> NodeResult:
         node.status = NodeStatus.RUNNING
         try:
             func = self.get_node_callable(node.id)
@@ -186,7 +186,7 @@ class Graph:
                 error=e
             )
         
-    def update_active_status(self, node: Node) -> NodeActiveStatus:
+    def update_active_status(self, node: BaseNode) -> NodeActiveStatus:
         curr_node_status = node.status
         new_active_status = None
         match curr_node_status:
