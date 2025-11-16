@@ -51,6 +51,7 @@ class State:
     def _update_state(self, new_state: Dict) -> 'State':
         """
         Returns a new state instance to avoid mutating curr state
+        - be able to append / overwrite / merge to global state
         """
         return State(new_state)
     
@@ -91,7 +92,7 @@ class Graph:
     def add_edge(self, from_node: Node | str, to_node: Node):
         # Validate the to_node exists in the registry
         if self.node_registry.get(to_node.id) is None:
-            raise ValueError(f"Node {to_node.id} does not exist in the node list.")
+            raise ValueError(f"Node {to_node.id} hasn't been added to the graph yet")
 
         # Validate the node has a state param
         if not isinstance(from_node, str) and not self.has_state_dict(from_node):
@@ -111,7 +112,7 @@ class Graph:
 
         # Validate the from_node exists in the registry
         if self.node_registry.get(from_node.id) is None:
-            raise ValueError(f"Node {from_node.id} does not exist in the node list.")
+            raise ValueError(f"Node {from_node.id} hasn't been added to the graph yet")
 
         # Validate the edge doesn't already exist
         if self.adjacency_list.get(from_node.id) is not None and to_node.id in self.adjacency_list[from_node.id]:

@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Dict, List
 from react_agent.message import Message
 import time
+import abc
 
 class NodeActiveStatus(Enum):
     ACTIVE = "ACTIVE"
@@ -25,7 +26,7 @@ class NodeStatus(Enum):
     def __repr__(self):
         return f"NodeStatus.{self.name}"
 
-class Node:
+class BaseNode(abc.ABC):
     def __init__(self, func: Callable, max_retries: int = 15, status: NodeStatus = NodeStatus.INITIALIZED):
         # Get the current time in nanoseconds as an integer
         timestamp_ns = time.time_ns()
@@ -50,7 +51,14 @@ class Node:
     def __repr__(self):
         return f"Node(id={self.id}, callable={self.callable}, max_retries={self.max_retries}, is_visited={self.is_visited}, status={self.status})"
     
-class BranchNode(Node):
+class Node(BaseNode):
+    """
+    A concrete implementation of BaseNode with no additional logic needed.
+    It inherits everything from BaseNode.
+    """
+    pass
+    
+class BranchNode(BaseNode):
     """
     WHAT BRANCH NODE SHOULD DO:
 
