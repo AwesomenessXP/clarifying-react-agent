@@ -4,7 +4,6 @@ from typing import Callable
 from utils.is_async_callable import _is_async_callable
 from enum import Enum
 from typing import Dict, List
-from react_agent.message import Message
 import time
 import abc
 
@@ -81,14 +80,5 @@ class ConditionalNode(BaseNode):
     )
 
     """
-    pass
-
-# Used internally in the engine 
-class NodeResult:
-    def __init__(self, status: NodeStatus, msgs: List[Message] = [], error: Exception = None):
-        self.status = status
-        self.msgs = msgs
-        self.error = error
-
     def __repr__(self):
-        return f"NodeResult(status={self.status}, msgs='{self.msgs}', error={self.error})"
+        return f"ConditionalNode(id: {self.id}, callable={self.callable}, max_retries={self.max_retries}, status={self.status})"

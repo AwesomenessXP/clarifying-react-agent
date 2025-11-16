@@ -3,7 +3,6 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from typing import Callable
 from react_agent.node import (
     NodeStatus, 
-    NodeResult, 
     NodeActiveStatus,
     BaseNode,
     ConditionalNode,
@@ -12,9 +11,40 @@ from react_agent.node import (
 import asyncio
 from typing import Any
 from typing import Dict, List
-from react_agent.message import Message
 import inspect
 
+START = "START"
+
+END = "END"
+    
+class Message:
+    def __init__(self, node: BaseNode, content: dict | str):
+        """
+        Initializes content: dict[str, Any]
+        """
+        if isinstance(node, Node) and not isinstance(content, dict):
+             raise TypeError(f"Expected 'content' to be a dictionary, but received: {type(content)}")
+        elif isinstance(node, ConditionalNode) and not isinstance(content, str):
+            raise TypeError(f"Expected 'content' to be a string, but received: {type(content)}")
+
+        self.body = {
+            "node_id": node.id,
+            "content": content
+        }
+
+    def __repr__(self):
+        return f"Message(body='{self.body}')"
+    
+# Used internally in the engine 
+class NodeResult:
+    def __init__(self, status: NodeStatus, msgs: List[Message] = [], error: Exception = None):
+        self.status = status
+        self.msgs = msgs
+        self.error = error
+
+    def __repr__(self):
+        return f"NodeResult(status={self.status}, msgs='{self.msgs}', error={self.error})"
+    
 class RunState:
     """
     Internal facing class for coordinating state between nodes
@@ -81,7 +111,6 @@ class Graph:
             raise ValueError(f"Node with id {custom_name} already exists in the node list.")
         node = ConditionalNode(id=custom_name,func=func)
         self.node_registry[custom_name] = node
-        self.adjacency_list[custom_name] = []
 
     def has_state_dict(self, node_id: str):
         # Validate the to_node callable has a state dictionary parameter
@@ -103,10 +132,14 @@ class Graph:
 
     def add_edge(self, from_node: str | str, to_node: str):
         # Validate if this is the initial edge
-        if from_node == "START":
-            if self.adjacency_list.get("START") is not None:
+        if from_node == START:
+            if self.adjacency_list.get(START) is not None:
                 raise ValueError(f"ERROR: another node has already been initialized!")
-            self.adjacency_list["START"] = to_node
+            self.adjacency_list[START] = to_node
+            return
+        
+        if to_node == END:
+            # Handle termination later
             return
 
         # Validate the to_node exists in the registry
@@ -125,6 +158,21 @@ class Graph:
             raise ValueError(f"Edge from {from_node} to {to_node} already exists in the adjacency list.")
         
         self.adjacency_list[from_node].append(to_node)
+
+    def add_conditional_edges(self, custom_name: str, result_map: Dict):
+        if self.node_registry.get(custom_name) is None:
+            raise ValueError(f"Node {custom_name} hasn't been added to the graph yet")
+        
+        router_node = self.node_registry.get(custom_name)
+
+        # Check if each value in the results map is in the node registry
+        for result in result_map:
+            result_node_id = result_map[result]
+            if not self.node_registry.get(result_node_id):
+                raise ValueError(f"Node {custom_name} hasn't been added to the graph yet")
+            
+        # save result map to adjacency list (acts like children)
+        self.adjacency_list[router_node.id] = result_map
 
     def get_node_by_id(self, node_id: str) -> BaseNode | None:
         # Returns the actual node instance
@@ -165,13 +213,14 @@ class Graph:
                 res = asyncio.run(func(self.state.state))
             else:
                 res = func(self.state.state)
+
             node.status = NodeStatus.SUCCESS
             node.is_visited = True
             return NodeResult(
                 status = node.status,
                 msgs=[
                     Message(
-                        node.id,
+                        node,
                         content = res
                     )
                 ]
@@ -183,7 +232,7 @@ class Graph:
                 status = node.status,
                 msgs=[
                     Message(
-                        node.id,
+                        node,
                         content = {
                             "INTERNAL_NODE_ERROR": f"{str(e)}"
                         }
@@ -231,9 +280,9 @@ class Graph:
             # Runs the initial step
             if self.run_state.step_count == 0:
                 # find and execute the first node
-                init_node_id = self.adjacency_list.get("START")
+                init_node_id = self.adjacency_list.get(START)
                 init_node = self.get_node_by_id(init_node_id)
-                self.run_state.nodes_active_status[init_node.id] = NodeActiveStatus.ACTIVE
+                self.run_state.nodes_active_status[init_node_id] = NodeActiveStatus.ACTIVE
                 print("active nodes: ", self.run_state.nodes_active_status)
 
                 print("status: ", init_node.status)
@@ -251,10 +300,39 @@ class Graph:
                 print("outbox msgs: ", self.run_state.outbox_msgs)
                 print("active nodes: ", self.run_state.nodes_active_status)
 
+                # Update the global state
                 new_state = self.state._update_state(res.msgs[0].body.get("content"))
+                self.state = new_state
 
                 print("old state from graph: ", self.state.state)
                 print("new state from graph: ", new_state.state)
+
+                # Get the children of the init node
+                children = self.adjacency_list.get(init_node_id)
+                print("children: ", children)
+
+                if len(children) > 1:
+                    # If there's more than one router node, throw an error
+                    router_node_count = 0
+                    for child_id in children:
+                        child_node = self.node_registry.get(child_id)
+                        if isinstance(child_node, ConditionalNode):
+                            router_node_count += 1
+                        if router_node_count > 1:
+                            raise Exception("ERROR: Each node can only map to one conditional router")
+                    break
+                elif len(children) == 1:
+                    child_id = children[0]
+                    # Lookup the node in registry
+                    child_node = self.node_registry.get(child_id)
+
+                    # Check if the child node is a branching node or regular node
+                    if isinstance(child_node, ConditionalNode):
+                        print("child node: ", child_node)
+                        router_node_res = self.run_node_callable(child_node)
+                        print("router_node_res", router_node_res)
+                    elif isinstance(child_node, Node):
+                        pass
 
                 # FINISHED: create global state dict and initialize only when compile() runs -> each node needs a way to look at state
                 # FINISHED: be able to make node functions and pass global state as a param
