@@ -27,16 +27,8 @@ class NodeStatus(Enum):
         return f"NodeStatus.{self.name}"
 
 class BaseNode(abc.ABC):
-    def __init__(self, func: Callable, max_retries: int = 15, status: NodeStatus = NodeStatus.INITIALIZED):
-        # Get the current time in nanoseconds as an integer
-        timestamp_ns = time.time_ns()
-        
-        # Get the function's name
-        func_name = str(func.__name__)
-        
-        # Combine them using an f-string
-        # Example format: "my_function_1701383345123456789"
-        self.id = f"{func_name}_{timestamp_ns}"
+    def __init__(self, id: str, func: Callable, max_retries: int = 15, status: NodeStatus = NodeStatus.INITIALIZED):
+        self.id = id
         self.callable = func
         self.max_retries = max_retries
         self.is_visited = False
@@ -47,9 +39,6 @@ class BaseNode(abc.ABC):
             print("Node initialized with async callable: ", func.__name__)
         else:
             self.is_async = False
-
-    def __repr__(self):
-        return f"Node(id={self.id}, callable={self.callable}, max_retries={self.max_retries}, is_visited={self.is_visited}, status={self.status})"
     
 class Node(BaseNode):
     """
@@ -58,9 +47,9 @@ class Node(BaseNode):
     """
     pass
     
-class BranchNode(BaseNode):
+class ConditionalNode(BaseNode):
     """
-    WHAT BRANCH NODE SHOULD DO:
+    WHAT CONDITIONAL NODE SHOULD DO:
 
     ---EXAMPLE FUNCTION DEFINITION---
         def route_decision(state):

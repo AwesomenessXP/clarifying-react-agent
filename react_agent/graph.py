@@ -5,7 +5,9 @@ from react_agent.node import (
     NodeStatus, 
     NodeResult, 
     NodeActiveStatus,
-    BaseNode
+    BaseNode,
+    ConditionalNode,
+    Node
 )
 import asyncio
 from typing import Any
@@ -65,15 +67,25 @@ class Graph:
         self.run_state = RunState()
         self.state = State(state.state)
 
-    def add_node(self, node: BaseNode):
+    def add_node(self, custom_name: str, func: Callable):
         # Validate the node doesn't already exist
-        if self.node_registry.get(node.id) is not None:
-            raise ValueError(f"Node with callable {node} already exists in the node list.")
-        self.node_registry[node.id] = node
-        self.adjacency_list[node.id] = []
+        if self.node_registry.get(custom_name) is not None:
+            raise ValueError(f"Node with id {custom_name} already exists in the node list.")
+        node = Node(id=custom_name,func=func)
+        self.node_registry[custom_name] = node
+        self.adjacency_list[custom_name] = []
 
-    def has_state_dict(self, node: BaseNode):
+    def add_conditional_node(self, custom_name: str, func: Callable):
+        # Validate the node doesn't already exist
+        if self.node_registry.get(custom_name) is not None:
+            raise ValueError(f"Node with id {custom_name} already exists in the node list.")
+        node = ConditionalNode(id=custom_name,func=func)
+        self.node_registry[custom_name] = node
+        self.adjacency_list[custom_name] = []
+
+    def has_state_dict(self, node_id: str):
         # Validate the to_node callable has a state dictionary parameter
+        node = self.node_registry.get(node_id)
         node_callable_params = inspect.signature(node.callable).parameters
 
         # Check if the first parameter's annotation is 'dict'
@@ -89,36 +101,30 @@ class Graph:
         
         return True
 
-    def add_edge(self, from_node: BaseNode | str, to_node: BaseNode):
-        # Validate the to_node exists in the registry
-        if self.node_registry.get(to_node.id) is None:
-            raise ValueError(f"Node {to_node.id} hasn't been added to the graph yet")
+    def add_edge(self, from_node: str | str, to_node: str):
+        # Validate if this is the initial edge
+        if from_node == "START":
+            if self.adjacency_list.get("START") is not None:
+                raise ValueError(f"ERROR: another node has already been initialized!")
+            self.adjacency_list["START"] = to_node
+            return
 
-        # Validate the node has a state param
-        if not isinstance(from_node, str) and not self.has_state_dict(from_node):
-            raise TypeError(f"Node must have a state dictionary as the first param")
+        # Validate the to_node exists in the registry
+        if self.node_registry.get(to_node) is None:
+            raise ValueError(f"Node {to_node} hasn't been added to the graph yet")
         
         if not self.has_state_dict(to_node):
             raise TypeError(f"Node must have a state dictionary as the first param")
-        
-        # Validate if this is the initial edge
-        if isinstance(from_node, str) and from_node == "START":
-            if self.adjacency_list.get("START") is not None:
-                raise ValueError(f"ERROR: another node has already been initialized!")
-            self.adjacency_list["START"] = to_node.id
-            return
-        elif isinstance(from_node, str) and from_node != "START":
-            raise ValueError(f"ERROR: string can only be 'START'")
 
         # Validate the from_node exists in the registry
-        if self.node_registry.get(from_node.id) is None:
-            raise ValueError(f"Node {from_node.id} hasn't been added to the graph yet")
+        if self.node_registry.get(from_node) is None:
+            raise ValueError(f"Node {from_node} hasn't been added to the graph yet")
 
         # Validate the edge doesn't already exist
-        if self.adjacency_list.get(from_node.id) is not None and to_node.id in self.adjacency_list[from_node.id]:
-            raise ValueError(f"Edge from {from_node.id} to {to_node.id} already exists in the adjacency list.")
+        if self.adjacency_list.get(from_node) is not None and to_node in self.adjacency_list[from_node]:
+            raise ValueError(f"Edge from {from_node} to {to_node} already exists in the adjacency list.")
         
-        self.adjacency_list[from_node.id].append(to_node.id)
+        self.adjacency_list[from_node].append(to_node)
 
     def get_node_by_id(self, node_id: str) -> BaseNode | None:
         # Returns the actual node instance
@@ -254,8 +260,8 @@ class Graph:
                 # FINISHED: be able to make node functions and pass global state as a param
                 #
                 # TODO: CREATE BRANCHING LOGIC
-                # TODO: 1. implement router nodes, add to Graph class
-                # TODO: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
+                # FINISHED: 1. implement router nodes, add to Graph class
+                # FINISHED: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
                 # TODO: 1.2 if the current node has a router node as a child, pass state to it and execute callable
                 # TODO: 1.2 (cont) activate the node in callable res -> add to internal buffer (if not init node) -> add to active nodes list at barrier
                 # TODO: 1.3 if the current node has more than one child node -> handle parallelism later on

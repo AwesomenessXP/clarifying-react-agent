@@ -2,7 +2,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import asyncio
 from react_agent.graph import Graph, State
-from react_agent.node import Node
+from react_agent.node import Node, ConditionalNode
 from typing import Dict
 import json
 
@@ -39,24 +39,27 @@ async def async_hello(state: Dict):
         "result": string
     }
 
+def router(state: Dict):
+    if state["result"] == "Hello, world!":
+        return "node2"
+    else:
+        return "node3"
+
 def main():
     state = State({
         "result": "Init"
     })
     graph = Graph(state)
-    node1 = Node(func=hello_world)
-    node2 = Node(func=good_bye)
-    node3 = Node(func=hello_again)
-    node4 = Node(func=async_hello)
-    graph.add_node(node1)
-    graph.add_node(node2)
-    graph.add_node(node3)
-    graph.add_node(node4)
+    graph.add_node("node1", func=hello_world)
+    # graph.add_conditional_node("router", router)
+    graph.add_node("node2", func=hello_again)
+    graph.add_node("node3", func=good_bye)
+    graph.add_node("node4", func=async_hello)
 
-    graph.add_edge("START", node1)
-    graph.add_edge(from_node=node1, to_node=node2)
-    graph.add_edge(from_node=node2, to_node=node3)
-    graph.add_edge(from_node=node3, to_node=node4)
+    graph.add_edge("START", "node1")
+    graph.add_edge(from_node="node1", to_node="node2")
+    graph.add_edge(from_node="node2", to_node="node3")
+    graph.add_edge(from_node="node3", to_node="node4")
 
     print("graph adjacency list: ", json.dumps(graph.adjacency_list, indent=2))
 
