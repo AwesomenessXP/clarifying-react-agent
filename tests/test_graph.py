@@ -68,8 +68,8 @@ def main():
     graph.add_conditional_edges(
         "router", 
         {
-            "has_result": "node2",
-            "no_result": "node3"
+            "has_result": "node3",
+            "no_result": "node2"
         }
     )
     graph.add_edge(from_node="node2", to_node=END)

@@ -279,7 +279,7 @@ class Graph:
         while True:
             # Runs the initial step
             if self.run_state.step_count == 0:
-                # find and execute the first node
+                # BEGINNING OF INIT NODE CONDITION
                 init_node_id = self.adjacency_list.get(START)
                 init_node = self.get_node_by_id(init_node_id)
                 self.run_state.nodes_active_status[init_node_id] = NodeActiveStatus.ACTIVE
@@ -289,6 +289,8 @@ class Graph:
                 res = self.run_node_callable(init_node)
                 print("status: ", init_node.status)
                 print("res: ", res)
+
+                # ------ BARRIER --------------------
 
                 # update the active / inactive nodes lists based on the node result
                 new_active_status = self.update_active_status(init_node)
@@ -311,6 +313,8 @@ class Graph:
                 children = self.adjacency_list.get(init_node_id)
                 print("children: ", children)
 
+                active_children = []
+
                 if len(children) > 1:
                     # If there's more than one router node, throw an error
                     router_node_count = 0
@@ -320,7 +324,9 @@ class Graph:
                             router_node_count += 1
                         if router_node_count > 1:
                             raise Exception("ERROR: Each node can only map to one conditional router")
-                    break
+                        
+                    # Handle parallelism with children later on, run children serially in next superstep
+                    active_children = children
                 elif len(children) == 1:
                     child_id = children[0]
                     # Lookup the node in registry
@@ -328,24 +334,39 @@ class Graph:
 
                     # Check if the child node is a branching node or regular node
                     if isinstance(child_node, ConditionalNode):
-                        print("child node: ", child_node)
+                        print("router node: ", child_node)
                         router_node_res = self.run_node_callable(child_node)
-                        print("router_node_res", router_node_res)
+                        # Use the adjacency list to find the node mapping of the result
+                        result_map = self.adjacency_list[child_node.id]
+                        if result_map.get(router_node_res.msgs[0].body.get('content')) is not None:
+                            result_node_id = result_map.get(router_node_res.msgs[0].body.get('content'))
+                            active_children.append(result_node_id)
+                            print("routing to node:", result_node_id)
                     elif isinstance(child_node, Node):
-                        pass
+                        active_children.append(child_id)
 
+                # Activate the child nodes globally for the next superstep
+                for child in active_children:
+                    self.run_state.nodes_active_status[child] = NodeActiveStatus.ACTIVE
+
+                print("active nodes: ", self.run_state.nodes_active_status)
+
+                # END OF INIT NODE CONDITION
+            else:
+                # START OF N+1 SUPERSTEP
+                pass
                 # FINISHED: create global state dict and initialize only when compile() runs -> each node needs a way to look at state
                 # FINISHED: be able to make node functions and pass global state as a param
                 #
                 # TODO: CREATE BRANCHING LOGIC
                 # FINISHED: 1. implement router nodes, add to Graph class
                 # FINISHED: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
-                # TODO: 1.2 if the current node has a router node as a child, pass state to it and execute callable
+                # FINISHED: 1.2 if the current node has a router node as a child, pass state to it and execute callable
                 # TODO: 1.2 (cont) activate the node in callable res -> add to internal buffer (if not init node) -> add to active nodes list at barrier
                 # TODO: 1.3 if the current node has more than one child node -> handle parallelism later on
                 # TODO: 1.4 if the current node has one child -> add to internal buffer (if not init node) -> add to active nodes list at barrier
 
-                # TODO: activate next superstep's nodes
+                # FINISHED: activate next superstep's nodes
                 # 2. visit node children
                 # 2.5 call router function
                 # 3. determine next active node from router function result

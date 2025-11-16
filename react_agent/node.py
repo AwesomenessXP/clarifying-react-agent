@@ -81,4 +81,4 @@ class ConditionalNode(BaseNode):
 
     """
     def __repr__(self):
-        return f"ConditionalNode(id: {self.id}, callable={self.callable}, max_retries={self.max_retries}, status={self.status})"
+        return f"ConditionalNode(id: {self.id}, callable={self.callable.__name__}, max_retries={self.max_retries}, status={self.status})"
