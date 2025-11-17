@@ -27,13 +27,11 @@ class Message:
         elif isinstance(node, ConditionalNode) and not isinstance(content, str):
             raise TypeError(f"Expected 'content' to be a string, but received: {type(content)}")
 
-        self.body = {
-            "node": node,
-            "content": content
-        }
+        self.node = node
+        self.content = content
 
     def __repr__(self):
-        return f"Message(body='{self.body}')"
+        return f"Message(node='{self.node}, content='{self.content}')"
     
 # Used internally in the engine 
 class NodeResult:
@@ -331,7 +329,7 @@ class Graph:
                 # Update the global state
                 print("old state from graph: ", self.state.state)
                 print("result: ", res)
-                new_state = self.state._update_state(res.msg.body.get("content"))
+                new_state = self.state._update_state(res.msg.content)
                 self.state = new_state
                 print("new state from graph: ", new_state.state)
 
@@ -364,8 +362,8 @@ class Graph:
                         router_node_res = self.run_node_callable(child_node)
                         # Use the adjacency list to find the node mapping of the result
                         result_map = self.adjacency_list[child_node.id]
-                        if result_map.get(router_node_res.msg.body.get('content')) is not None:
-                            result_node_id = result_map.get(router_node_res.msg.body.get('content'))
+                        if result_map.get(router_node_res.msg.content) is not None:
+                            result_node_id = result_map.get(router_node_res.msg.content)
                             active_children.append(result_node_id)
                             print("routing to node:", result_node_id)
                     elif isinstance(child_node, Node):
@@ -396,7 +394,7 @@ class Graph:
                     print("res: ", res)
 
                     # Update each node's internal buffer and update the registry with the updated node
-                    active_node = res.msg.body.get("node")
+                    active_node = res.msg.node
                     active_node.internal_outbox_msg = res.msg
                     self.node_registry[active_node.id] = active_node
 
@@ -413,7 +411,7 @@ class Graph:
                     # Pass node results to global outbox_msgs buffer
                     # TODO: create function to handle appending to outbox_msgs, and overwrite / merge / keep first / keep recent
                     self.run_state.outbox_msgs.append(node.result.msg) # replace this with thread-safe operation
-                    print("node result: ", node.result.msg.body.get('content'))
+                    print("node result: ", node.result.msg.content)
                 
                 print("outbox msgs: ", self.run_state.outbox_msgs)
                 print("active nodes: ", self.run_state.nodes_status_map)
