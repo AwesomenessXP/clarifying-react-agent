@@ -349,12 +349,12 @@ class Graph:
                 for child in active_children:
                     self.run_state.nodes_active_status[child] = NodeActiveStatus.ACTIVE
 
-                print("active nodes: ", self.run_state.nodes_active_status)
-
                 # END OF INIT NODE CONDITION
             else:
                 # START OF N+1 SUPERSTEP
-                pass
+                # read which nodes are active in this round
+                print("active nodes: ", self.run_state.nodes_active_status)
+                break
                 # FINISHED: create global state dict and initialize only when compile() runs -> each node needs a way to look at state
                 # FINISHED: be able to make node functions and pass global state as a param
                 #
@@ -376,7 +376,4 @@ class Graph:
                 # TODO: be able to handle merge or append to state if there is parallelism
                 # TODO: implement termination
             
-                self.run_state.step_count += 1
-                continue
-
-            break
+            self.run_state.step_count += 1

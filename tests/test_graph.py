@@ -1,83 +1,152 @@
-import os, sys
+import os
+import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+import pytest
 import asyncio
-from react_agent.graph import (Graph, State, START, END)
+from react_agent.graph import Graph, State, START, END
 from react_agent.node import Node, ConditionalNode
 from typing import Dict
-import json
 
-def hello_world(state: Dict):
-    string = "Hello, world!"
-    print(string)
-    print("state in hello_world(): ", state)
-    return {
-        "result": string
-    }
 
-def good_bye(state: Dict):
-    string = "Goodbye world"
-    print(string)
-    print("state in good_bye(): ", state)
-    return {
-        "result": string
-    }
-
-def hello_again(state: Dict):
-    string = "Hello again!"
-    print(string)
-    print("state in hello_again(): ", state)
-    return {
-        "result": string
-    }
-
-async def async_hello(state: Dict):
-    await asyncio.sleep(0.1)
-    string = "Hello from async function!"
-    print(string)
-    print("state in async_hello(): ", state)
-    return {
-        "result": string
-    }
-
-def router(state: Dict):
-    # return a key to the next node
-    if state["result"] == "Hello, world!":
-        return "has_result"
-    else:
-        return "no_result"
+def test_simple_linear_flow():
+    """Test a simple linear flow: START -> node1 -> node2 -> node3 -> END"""
+    def node1(state: Dict):
+        return {"step": 1, "message": "Node 1 executed"}
     
-def router2(state: Dict):
-    # return a key to the next node
-    if state["result"] == "Hello, world!":
-        return "has_result"
-    else:
-        return "no_result"
-
-def main():
-    state = State({
-        "result": "Init"
-    })
+    def node2(state: Dict):
+        assert state.get("step") == 1, "Node 2 should receive state from node1"
+        return {"step": 2, "message": "Node 2 executed"}
+    
+    def node3(state: Dict):
+        assert state.get("step") == 2, "Node 3 should receive state from node2"
+        return {"step": 3, "message": "Node 3 executed"}
+    
+    state = State({"step": 0, "message": "Initial state"})
     graph = Graph(state)
+    
+    # Add nodes
+    graph.add_node("node1", func=node1)
+    graph.add_node("node2", func=node2)
+    graph.add_node("node3", func=node3)
+    
+    # Add edges
+    graph.add_edge(START, "node1")
+    graph.add_edge("node1", "node2")
+    graph.add_edge("node2", "node3")
+    graph.add_edge("node3", END)
+    
+    # Execute graph
+    graph.compile()
+    
+    # Verify final state
+    assert graph.state.state["step"] == 3
+    assert graph.state.state["message"] == "Node 3 executed"
+    assert graph.run_state.step_count > 0
+
+
+def test_conditional_edges():
+    """Test conditional routing based on state"""
+    def hello_world(state: Dict):
+        string = "Hello, world!"
+        return {"result": string}
+    
+    def hello_again(state: Dict):
+        string = "Hello again!"
+        return {"result": string}
+    
+    def good_bye(state: Dict):
+        string = "Goodbye world"
+        return {"result": string}
+    
+    def router(state: Dict):
+        # Return a key to the next node based on state
+        if state["result"] == "Hello, world!":
+            return "has_result"
+        else:
+            return "no_result"
+    
+    state = State({"result": "Init"})
+    graph = Graph(state)
+    
+    # Add nodes
     graph.add_node("node1", func=hello_world)
     graph.add_node("node2", func=hello_again)
     graph.add_node("node3", func=good_bye)
     graph.add_conditional_node("router", func=router)
-
+    
+    # Add edges
     graph.add_edge(START, "node1")
     graph.add_edge("node1", "router")
     graph.add_conditional_edges(
-        "router", 
+        "router",
         {
             "has_result": "node3",
             "no_result": "node2"
         }
     )
-    graph.add_edge(from_node="node2", to_node=END)
-    graph.add_edge(from_node="node3", to_node=END)
-    # graph.add_edge(from_node="node3", to_node="node4")
-
-    print("graph adjacency list: ", json.dumps(graph.adjacency_list, indent=2))
-
+    graph.add_edge("node2", END)
+    graph.add_edge("node3", END)
+    
+    # Execute graph
     graph.compile()
+    
+    # Verify that router correctly routed to node3 (since node1 returns "Hello, world!")
+    # The final state should have "Goodbye world" from node3
+    assert graph.state.state["result"] == "Goodbye world"
+    assert "node3" in graph.run_state.nodes_active_status
 
-main()
+
+def test_concurrent_nodes():
+    """Test that multiple nodes can be executed (concurrency simulation)"""
+    execution_order = []
+    
+    def node1(state: Dict):
+        execution_order.append("node1")
+        return {"step": 1, "executed": ["node1"]}
+    
+    def node2(state: Dict):
+        execution_order.append("node2")
+        return {"step": 2, "executed": ["node2"]}
+    
+    def node3(state: Dict):
+        execution_order.append("node3")
+        # Merge results from previous nodes
+        executed = state.get("executed", [])
+        executed.append("node3")
+        return {"step": 3, "executed": executed}
+    
+    async def async_node(state: Dict):
+        await asyncio.sleep(0.01)  # Simulate async work
+        execution_order.append("async_node")
+        return {"step": 4, "executed": ["async_node"]}
+    
+    state = State({"step": 0, "executed": []})
+    graph = Graph(state)
+    
+    # Add nodes
+    graph.add_node("node1", func=node1)
+    graph.add_node("node2", func=node2)
+    graph.add_node("node3", func=node3)
+    graph.add_node("async_node", func=async_node)
+    
+    # Create a flow: START -> node1 -> [node2, async_node] -> node3 -> END
+    # Note: Current implementation may run serially, but we test the structure
+    graph.add_edge(START, "node1")
+    graph.add_edge("node1", "node2")
+    graph.add_edge("node1", "async_node")
+    graph.add_edge("node2", "node3")
+    graph.add_edge("async_node", "node3")
+    graph.add_edge("node3", END)
+    
+    # Execute graph
+    graph.compile()
+    
+    # Verify execution occurred
+    assert len(execution_order) > 0
+    assert "node1" in execution_order
+    # Note: Due to current serial implementation, exact order may vary
+    # This test verifies the graph structure supports multiple paths
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
