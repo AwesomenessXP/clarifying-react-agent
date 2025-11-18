@@ -87,10 +87,52 @@ class RunState:
         self.inbox_msgs: List[Message] = []
         self.nodes_status_map: Dict[str, NodeStatus] = {}
 
-    def merge_state(self, local_inbox_msgs: List[Message], curr_state: Dict) -> State:
-        # Ensure that updates merging to the same key are the same type
+    def get_type(self, x):
+        match x:
+            case int():
+                return int()
+            case str():
+                return str()
+            case bool():
+                return bool()
+            case float():
+                return float()
+            case list():
+                return list()
+            case dict():
+                return dict()
+            case _:
+                return "unknown type"
+
+    def merge_state(self, local_inbox_msgs: List[Message]) -> State:
+        new_content = {}
         for msg in local_inbox_msgs:
-            print("msg.content: ", msg.content)
+            content = msg.content
+            for key, value in content.items():
+                print("key:", key, "value:", value)
+                # Ensure the types are known
+                if self.get_type(value) == "unknown type":
+                    raise TypeError(f"Type {type(value)} is unknown")
+                
+                type_to_merge = self.get_type(value)
+                
+                # Merge the values
+                try:
+                    match type_to_merge:
+                        case int() | str() | bool() | float():
+                            if type(new_content.get(key)) != list:
+                                new_content[key] = [value] 
+                            else:
+                                new_content[key].append(value)
+                        case list():
+                            new_content[key] = new_content.get(key).append(value)
+                        case _:
+                            raise TypeError(f"Type {type(value)} unable to be merged")
+                except Exception as e:
+                    raise Exception(f"Error:", e)
+        
+        # Return new state
+        return new_content
     
 class Graph:
     def __init__(self, state: State):
@@ -426,8 +468,10 @@ class Graph:
 
                 # Use a merging strategy to append to global outbox
                 print("old state from graph: ", self.state.state)
-                new_state = self.run_state.merge_state(local_inbox_msgs, self.state.state)
-                # print("new state from graph: ", new_state.state)
+                new_content = self.run_state.merge_state(local_inbox_msgs)
+                new_state = self.state._update_state(new_content)
+                self.state = new_state
+                print("new state from graph: ", self.state.state)
 
                 # Get the children of the active nodes and determine which to activate
             

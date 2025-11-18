@@ -5,8 +5,7 @@ import pytest
 import asyncio
 from react_agent.graph import Graph, State, START, END
 from react_agent.node import Node, ConditionalNode
-from typing import Dict
-
+from typing import Dict, TypedDict
 
 def test_simple_linear_flow():
     """Test a simple linear flow: START -> node1 -> node2 -> node3 -> END"""
