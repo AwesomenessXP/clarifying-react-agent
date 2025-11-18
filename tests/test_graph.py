@@ -43,7 +43,7 @@ def test_simple_linear_flow():
     graph.add_edge("node2", END)
     
     # Execute graph
-    graph.compile()
+    graph.invoke()
     
     # Verify final state
     # assert graph.state.state["step"] == 3
@@ -95,7 +95,7 @@ def test_simple_linear_flow():
 #     graph.add_edge("node3", END)
     
 #     # Execute graph
-#     graph.compile()
+#     graph.invoke()
     
 #     # Verify that router correctly routed to node3 (since node1 returns "Hello, world!")
 #     # The final state should have "Goodbye world" from node3
@@ -146,7 +146,7 @@ def test_simple_linear_flow():
 #     graph.add_edge("node3", END)
     
 #     # Execute graph
-#     graph.compile()
+#     graph.invoke()
     
 #     # Verify execution occurred
 #     assert len(execution_order) > 0

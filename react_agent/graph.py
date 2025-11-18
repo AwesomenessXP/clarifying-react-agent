@@ -31,7 +31,7 @@ class Message:
         self.content = content
 
     def __repr__(self):
-        return f"Message(node='{self.node}, content='{self.content}')"
+        return f"Message(node='{self.node.id}, content='{self.content}')"
     
 # Used internally in the engine 
 class NodeResult:
@@ -42,18 +42,6 @@ class NodeResult:
 
     def __repr__(self):
         return f"NodeResult(status={self.status}, msg='{self.msg}', error={self.error})"
-    
-class RunState:
-    """
-    Internal facing class for coordinating state between nodes
-    """
-    def __init__(self):
-        self.step_count = 0
-
-        # Message buffers for syncing data between nodes
-        self.inbox_msgs: List[Message] = []
-        self.outbox_msgs: List[Message] = []
-        self.nodes_status_map: Dict[str, NodeStatus] = {}
 
 class State:
     """
@@ -87,6 +75,22 @@ class State:
     
     def __repr__(self):
         return f"State(state='{self.state}')"
+    
+class RunState:
+    """
+    Internal facing class for coordinating state between nodes
+    """
+    def __init__(self):
+        self.step_count = 0
+
+        # Message buffers for syncing data between nodes
+        self.inbox_msgs: List[Message] = []
+        self.nodes_status_map: Dict[str, NodeStatus] = {}
+
+    def merge_state(self, local_inbox_msgs: List[Message], curr_state: Dict) -> State:
+        # Ensure that updates merging to the same key are the same type
+        for msg in local_inbox_msgs:
+            print("msg.content: ", msg.content)
     
 class Graph:
     def __init__(self, state: State):
@@ -251,14 +255,14 @@ class Graph:
                 new_active_status = NodeActiveStatus.ACTIVE
         return new_active_status
 
-    def compile(self):
+    def invoke(self):
         # This is where the active node passes information about what nodes to activate in the future
         # ITERATION 0:
         # - init node doesn't look at the inbox_msgs
         # - set node status to running
         # - init node runs on default
         # - depending on node res, update status, then pass current node state
-        # - pass node res to outbox_msgs
+        # - pass node res to inbox_msgs
         # - pass current node errors -> handle errors later
         # - visit children and see which nodes to activate in the next superstep
         # 
@@ -275,7 +279,7 @@ class Graph:
         # - TRICKY: handle convergence later, can be append only for now
         # - prev nodes could have sent to the same message -> have a unique identifier so you know who sent the message
 
-        # FINISHED: create global state dict and initialize only when compile() runs -> each node needs a way to look at state
+        # FINISHED: create global state dict and initialize only when invoke() runs -> each node needs a way to look at state
         # FINISHED: be able to make node functions and pass global state as a param
         #
         # TODO: CREATE BRANCHING LOGIC
@@ -307,7 +311,7 @@ class Graph:
                 print("adjacency list: ", json.dumps(self.adjacency_list, indent = 2))
                 init_node = self.get_node_by_id(init_node_id)
                 self.run_state.nodes_status_map[init_node_id] = NodeActiveStatus.ACTIVE
-                print("active nodes: ", self.run_state.nodes_status_map)
+                print("node statuses: ", self.run_state.nodes_status_map)
 
                 print("status: ", init_node.status)
                 res = self.run_node_callable(init_node)
@@ -320,11 +324,11 @@ class Graph:
                 new_active_status = self.update_active_status(init_node)
                 self.run_state.nodes_status_map[init_node.id] = new_active_status
                 
-                # Pass node res to global outbox_msgs buffer
+                # Pass node res to global inbox_msgs buffer
                 # Since only one node is active in the beginning, we can write directly to global
-                self.run_state.outbox_msgs.append(res.msg)
-                print("outbox msgs: ", self.run_state.outbox_msgs)
-                print("active nodes: ", self.run_state.nodes_status_map)
+                self.run_state.inbox_msgs.append(res.msg)
+                print("inbox msgs: ", self.run_state.inbox_msgs)
+                print("node statuses: ", self.run_state.nodes_status_map)
 
                 # Update the global state
                 print("old state from graph: ", self.state.state)
@@ -379,6 +383,7 @@ class Graph:
                 # read which nodes are active in this round
                 active_nodes = {k: v for k, v in self.run_state.nodes_status_map.items() if v == NodeActiveStatus.ACTIVE}
                 if len(active_nodes) == 0:
+                    print("ending the loop, no active nodes left")
                     break
 
                 print("active nodes: ", active_nodes)
@@ -400,6 +405,9 @@ class Graph:
 
                 # ------ BARRIER --------------------
 
+                # superstep-local bucket for messages
+                local_inbox_msgs = []
+
                 # update the global active / inactive nodes lists based on the node result
                 # NOTE: check from the node_registry for the updated nodes!
                 for active_node_id in active_nodes:
@@ -408,19 +416,17 @@ class Graph:
                     new_active_status = self.update_active_status(node)
                     self.run_state.nodes_status_map[node.id] = new_active_status
                 
-                    # Pass node results to global outbox_msgs buffer
-                    # TODO: create function to handle appending to outbox_msgs, and overwrite / merge / keep first / keep recent
-                    self.run_state.outbox_msgs.append(node.result.msg) # replace this with thread-safe operation
+                    # Pass node results to local inbox_msgs buffer
+                    local_inbox_msgs.append(node.result.msg)
                     print("node result: ", node.result.msg.content)
                 
-                print("outbox msgs: ", self.run_state.outbox_msgs)
-                print("active nodes: ", self.run_state.nodes_status_map)
+                print("global inbox msgs: ", self.run_state.inbox_msgs)
+                print("local inbox msgs: ", local_inbox_msgs)
+                print("node statuses: ", self.run_state.nodes_status_map)
 
-                # Update the global state
+                # Use a merging strategy to append to global outbox
                 print("old state from graph: ", self.state.state)
-                print("result: ", res)
-                # new_state = self.state._update_state(sdsdfsef lfs)
-                # self.state = new_state
+                new_state = self.run_state.merge_state(local_inbox_msgs, self.state.state)
                 # print("new state from graph: ", new_state.state)
 
                 # Get the children of the active nodes and determine which to activate
