@@ -32,7 +32,7 @@ class BaseNode(abc.ABC):
         self.max_retries = max_retries
         self.is_visited = False
         self.status = status
-        self.internal_outbox_msg = None # internal message for isolating updates
+        self.internal_inbox_msg = None # internal message for isolating updates
         self.result = None
 
         if _is_async_callable(func):

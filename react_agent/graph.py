@@ -103,13 +103,36 @@ class RunState:
                 return dict()
             case _:
                 return "unknown type"
+            
+    def is_valid_list_type(self, content, new_item):
+        return len(content) > 0 and type(content[-1]) == type(new_item)
+            
+    def merge_content(self, type_to_merge, new_content, key, value):
+        match type_to_merge:
+            case int() | str() | bool() | float() | dict():
+                if type(new_content.get(key)) != list:
+                    new_content[key] = [value] 
+                else:
+                    if not self.is_valid_list_type(new_content[key], value):
+                        raise TypeError(f"Type {type(value)} unable to be merged to a list of {type(new_content[key][-1])}")
+                    new_content[key].append(value)
+            case list():
+                if new_content.get(key) == None:
+                    new_content[key] = [value]
+                else:
+                    if not self.is_valid_list_type(new_content[key], value):
+                        raise TypeError(f"Type {type(value)} unable to be merged to a list of {type(new_content[key][-1])}")
+                    new_content[key] = new_content[key] + [value]
+            case _:
+                raise TypeError(f"Type {type(value)} unable to be merged")
+            
+        return new_content[key]
 
     def merge_state(self, local_inbox_msgs: List[Message]) -> State:
         new_content = {}
         for msg in local_inbox_msgs:
             content = msg.content
             for key, value in content.items():
-                print("key:", key, "value:", value)
                 # Ensure the types are known
                 if self.get_type(value) == "unknown type":
                     raise TypeError(f"Type {type(value)} is unknown")
@@ -118,16 +141,12 @@ class RunState:
                 
                 # Merge the values
                 try:
-                    match type_to_merge:
-                        case int() | str() | bool() | float():
-                            if type(new_content.get(key)) != list:
-                                new_content[key] = [value] 
-                            else:
-                                new_content[key].append(value)
-                        case list():
-                            new_content[key] = new_content.get(key).append(value)
-                        case _:
-                            raise TypeError(f"Type {type(value)} unable to be merged")
+                    new_content[key] = self.merge_content(
+                        type_to_merge, 
+                        new_content, 
+                        key, 
+                        value
+                    )
                 except Exception as e:
                     raise Exception(f"Error:", e)
         
@@ -339,7 +358,6 @@ class Graph:
         # 4. If no router, set all children to active
 
         # TODO: be able to detect and handle cycles, and a max recursion limit
-        # TODO: be able to handle merge or append to state if there is parallelism
         # TODO: implement termination
 
         # TODO: be able to traverse nodes serially
@@ -431,6 +449,7 @@ class Graph:
                 print("active nodes: ", active_nodes)
 
                 # Process each active node (not in parallel yet)
+                # TODO: MAKE THE NODES RUN IN PARALLEL!!
                 for active_node_id in active_nodes:
                     print("node", active_node_id)
                     active_node = self.get_node_by_id(active_node_id)
@@ -442,7 +461,7 @@ class Graph:
 
                     # Update each node's internal buffer and update the registry with the updated node
                     active_node = res.msg.node
-                    active_node.internal_outbox_msg = res.msg
+                    active_node.internal_inbox_msg = res.msg
                     self.node_registry[active_node.id] = active_node
 
                 # ------ BARRIER --------------------
@@ -466,7 +485,8 @@ class Graph:
                 print("local inbox msgs: ", local_inbox_msgs)
                 print("node statuses: ", self.run_state.nodes_status_map)
 
-                # Use a merging strategy to append to global outbox
+                # Use a merging strategy to append to global inbox
+                # TODO: in the future, allow users to pick a merging strategy (append, overwrite, keep first)
                 print("old state from graph: ", self.state.state)
                 new_content = self.run_state.merge_state(local_inbox_msgs)
                 new_state = self.state._update_state(new_content)
