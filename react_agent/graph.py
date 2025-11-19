@@ -200,7 +200,7 @@ class Graph:
         
         return True
 
-    def add_edge(self, from_node: str | str, to_node: str):
+    def add_edge(self, from_node: str, to_node: str):
         # Validate if this is the initial edge
         if from_node == START:
             if self.adjacency_list.get(START) is not None:
@@ -277,6 +277,8 @@ class Graph:
             # If there's more than one router node, throw an error
             router_node_count = 0
             for child_id in children:
+                if child_id == END:
+                    children.remove(child_id)
                 child_node = self.node_registry.get(child_id)
                 if isinstance(child_node, ConditionalNode):
                     router_node_count += 1
@@ -285,6 +287,9 @@ class Graph:
             active_children = children
         elif len(children) == 1:
             child_id = children[0]
+            if child_id == END:
+                children.remove(child_id)
+                return children
             # Lookup the node in registry
             child_node = self.node_registry.get(child_id)
 
@@ -369,12 +374,12 @@ class Graph:
         self.run_state.nodes_status_map[node_id] = NodeActiveStatus.ACTIVE
         return self.run_node_callable(node).msg
 
-    def apply_partial_update(self, msg):
+    def apply_partial_update(self, msg: Message):
         node = msg.node
         node.internal_inbox_msg = msg
         self.node_registry[node.id] = node
 
-    async def run_bsp_async(self, active_node_ids):
+    async def run_bsp_async(self, active_node_ids: list[str]):
         loop = asyncio.get_running_loop()
 
         msgs = await asyncio.gather(*[
@@ -426,6 +431,7 @@ class Graph:
         # 3. determine next active node from router function result
         # 4. If no router, set all children to active
 
+        # TODO: save all states in a global list
         # TODO: implement termination
         # - end only if there are no active nodes left, or ALL active nodes are END
         # - DO NOT end if not all nodes are END, one branch might have finished, but not the others
@@ -535,8 +541,8 @@ class Graph:
                 break
 
             # Temporary: end the loop after 5 iterations
-            if self.run_state.step_count == 5:
-                break
+            # if self.run_state.step_count == 5:
+            #     break
             
             self.run_state.step_count += 1
             print("\n")
