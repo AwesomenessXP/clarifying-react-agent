@@ -128,8 +128,15 @@ class RunState:
             
         return new_content[key]
 
-    def merge_state(self, local_inbox_msgs: List[Message]) -> State:
+    def merge_state(self, local_inbox_msgs: List[Message]) -> Dict:
         new_content = {}
+        # If there is no parallelism, return early
+        if len(local_inbox_msgs) == 1:
+            for key, value in local_inbox_msgs[0].content.items():
+                new_content[key] = value
+            return new_content
+
+        # Common case
         for msg in local_inbox_msgs:
             content = msg.content
             for key, value in content.items():
@@ -248,6 +255,9 @@ class Graph:
         for node_id in self.node_registry:
             nodes.append(self.node_registry[node_id])
         return nodes
+    
+    def get_active_nodes(self):
+        return {k: v for k, v in self.run_state.nodes_status_map.items() if v == NodeActiveStatus.ACTIVE}
     
     def get_node_callable(self, node_id: str) -> Callable:
         if self.node_registry.get(node_id) is not None:
@@ -413,6 +423,8 @@ class Graph:
         # 4. If no router, set all children to active
 
         # TODO: implement termination
+        # - end only if there are no active nodes left, or ALL active nodes are END
+        # - DO NOT end if not all nodes are END, one branch might have finished, but not the others
         # TODO: be able to detect and handle cycles, and a max recursion limit
 
         # TODO: be able to traverse nodes serially
@@ -463,10 +475,7 @@ class Graph:
             else:
                 # START OF N+1 SUPERSTEP
                 # read which nodes are active in this round
-                active_nodes = {k: v for k, v in self.run_state.nodes_status_map.items() if v == NodeActiveStatus.ACTIVE}
-                if len(active_nodes) == 0:
-                    print("ending the loop, no active nodes left")
-                    break
+                active_nodes = self.get_active_nodes()
 
                 print("active nodes: ", active_nodes)
 
@@ -515,10 +524,14 @@ class Graph:
                 # Activate the child nodes globally for the next superstep
                 for child in active_children:
                     self.run_state.nodes_status_map[child] = NodeActiveStatus.ACTIVE
-            
-            self.run_state.step_count += 1
-            print("\n")
+
+            if len(self.get_active_nodes()) == 0:
+                print("ending the loop, no active nodes left")
+                break
 
             # Temporary: end the loop after 4 iterations
             if self.run_state.step_count == 4:
                 break
+            
+            self.run_state.step_count += 1
+            print("\n")
