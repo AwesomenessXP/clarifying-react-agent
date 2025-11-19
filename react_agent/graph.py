@@ -201,13 +201,13 @@ class Graph:
             self.adjacency_list[START] = to_node
             return
         
-        if to_node == END:
-            # Handle termination later
-            return
-
         # Validate the to_node exists in the registry
-        if self.node_registry.get(to_node) is None:
+        if to_node != END and self.node_registry.get(to_node) is None:
             raise ValueError(f"Node {to_node} hasn't been added to the graph yet")
+        
+        if to_node == END:
+            self.adjacency_list[from_node].append(to_node)
+            return
         
         if not self.has_state_dict(to_node):
             raise TypeError(f"Node must have a state dictionary as the first param")
@@ -258,6 +258,40 @@ class Graph:
         if self.adjacency_list.get(node_id) is not None:
             return self.adjacency_list[node_id]
         raise ValueError(f"Node with id {node_id} not found in the graph.")
+    
+    def activate_children_nodes(self, active_node_id: str):
+        active_children = []
+        children = self.adjacency_list.get(active_node_id)
+        print("children of", active_node_id, ": ", children)
+        if len(children) > 1:
+            # If there's more than one router node, throw an error
+            router_node_count = 0
+            for child_id in children:
+                child_node = self.node_registry.get(child_id)
+                if isinstance(child_node, ConditionalNode):
+                    router_node_count += 1
+                if router_node_count > 1:
+                    raise Exception("ERROR: Each node can only map to one conditional router")
+            active_children = children
+        elif len(children) == 1:
+            child_id = children[0]
+            # Lookup the node in registry
+            child_node = self.node_registry.get(child_id)
+
+            # Check if the child node is a branching node or regular node
+            if isinstance(child_node, ConditionalNode):
+                print("router node: ", child_node)
+                router_node_res = self.run_node_callable(child_node)
+                # Use the adjacency list to find the node mapping of the result
+                result_map = self.adjacency_list[child_node.id]
+                if result_map.get(router_node_res.msg.content) is not None:
+                    result_node_id = result_map.get(router_node_res.msg.content)
+                    active_children.append(result_node_id)
+                    print("routing to node:", result_node_id)
+            elif isinstance(child_node, Node):
+                active_children.append(child_id)
+
+        return active_children
     
     def get_node_parents(self, child_node_id: str) -> int:
         parents_count = 0
@@ -368,9 +402,9 @@ class Graph:
         # FINISHED: 1. implement router nodes, add to Graph class
         # FINISHED: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
         # FINISHED: 1.2 if the current node has a router node as a child, pass state to it and execute callable
-        # TODO: 1.2 (cont) activate the node in callable res -> add to internal buffer (if not init node) -> add to active nodes list at barrier
-        # TODO: 1.3 if the current node has more than one child node -> handle parallelism later on
-        # TODO: 1.4 if the current node has one child -> add to internal buffer (if not init node) -> add to active nodes list at barrier
+        # FINISHED: 1.2 (cont) activate the node in callable res -> add to internal buffer (if not init node) -> add to active nodes list at barrier
+        # FINISHED: 1.3 if the current node has more than one child node -> handle parallelism later on
+        # FINISHED: 1.4 if the current node has one child -> add to internal buffer (if not init node) -> add to active nodes list at barrier
 
         # FINISHED: activate next superstep's nodes
         # 2. visit node children
@@ -378,8 +412,8 @@ class Graph:
         # 3. determine next active node from router function result
         # 4. If no router, set all children to active
 
-        # TODO: be able to detect and handle cycles, and a max recursion limit
         # TODO: implement termination
+        # TODO: be able to detect and handle cycles, and a max recursion limit
 
         # TODO: be able to traverse nodes serially
         print("\n")
@@ -419,40 +453,7 @@ class Graph:
                 print("new state from graph: ", new_state.state)
 
                 # Get the children of the init node
-                children = self.adjacency_list.get(init_node_id)
-                print("children: ", children)
-
-                active_children = []
-
-                if len(children) > 1:
-                    # If there's more than one router node, throw an error
-                    router_node_count = 0
-                    for child_id in children:
-                        child_node = self.node_registry.get(child_id)
-                        if isinstance(child_node, ConditionalNode):
-                            router_node_count += 1
-                        if router_node_count > 1:
-                            raise Exception("ERROR: Each node can only map to one conditional router")
-                        
-                    # Handle parallelism with children later on, run children serially in next superstep
-                    active_children = children
-                elif len(children) == 1:
-                    child_id = children[0]
-                    # Lookup the node in registry
-                    child_node = self.node_registry.get(child_id)
-
-                    # Check if the child node is a branching node or regular node
-                    if isinstance(child_node, ConditionalNode):
-                        print("router node: ", child_node)
-                        router_node_res = self.run_node_callable(child_node)
-                        # Use the adjacency list to find the node mapping of the result
-                        result_map = self.adjacency_list[child_node.id]
-                        if result_map.get(router_node_res.msg.content) is not None:
-                            result_node_id = result_map.get(router_node_res.msg.content)
-                            active_children.append(result_node_id)
-                            print("routing to node:", result_node_id)
-                    elif isinstance(child_node, Node):
-                        active_children.append(child_id)
+                active_children = self.activate_children_nodes(init_node_id)
 
                 # Activate the child nodes globally for the next superstep
                 for child in active_children:
@@ -502,6 +503,18 @@ class Graph:
                 print("new state from graph: ", self.state.state)
 
                 # Get the children of the active nodes and determine which to activate
+                active_children = []
+
+                for active_node_id in active_nodes:
+                    active_children = self.activate_children_nodes(active_node_id)
+                    # Deduplicate children if multiple nodes activate the same ones
+                    for child in active_children:
+                        if child not in active_children: 
+                            active_children.append(child)
+
+                # Activate the child nodes globally for the next superstep
+                for child in active_children:
+                    self.run_state.nodes_status_map[child] = NodeActiveStatus.ACTIVE
             
             self.run_state.step_count += 1
             print("\n")

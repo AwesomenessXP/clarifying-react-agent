@@ -39,8 +39,9 @@ async def test_simple_linear_flow():
     graph.add_edge(START, "node1")
     graph.add_edge("node1", "node2")
     graph.add_edge("node1", "node3")
-    graph.add_edge("node3", END)
-    graph.add_edge("node2", END)
+    graph.add_edge("node3", "node4")
+    graph.add_edge("node2", "node4")
+    graph.add_edge("node4", END)
     
     # Execute graph
     await graph.invoke()
