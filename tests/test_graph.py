@@ -154,6 +154,52 @@ async def test_concurrent_nodes():
 #     # Note: Due to current serial implementation, exact order may vary
 #     # This test verifies the graph structure supports multiple paths
 
+@pytest.mark.asyncio
+async def test_simple_loop():
+    def node_first(state: Dict):
+        print("running node_first")
+        state["step"] += 1
+        return {"step": state["step"], "message": "Node first executed"}
+    
+    def router(state: Dict):
+        # Return a key to the next node based on state
+        if state["step"] < 4:
+            return "no_result"
+        else:
+            return "has_result"
+    
+    def node_last(state: Dict):
+        print("running node_last")
+        return {"step": 5, "message": "Node last executed"}
+    
+    state = State({"step": 0, "message": "Initial state"})
+    graph = Graph(state)
+    
+    # Add nodes
+    graph.add_node("node_first", func=node_first)
+    graph.add_node("node_last", func=node_last)
+    graph.add_conditional_node("router", func=router)
+    
+    # Add edges
+    graph.add_edge(START, "node_first")
+    graph.add_edge("node_first", "router")
+    graph.add_conditional_edges(
+        "router",
+        {
+            "has_result": "node_last",
+            "no_result": "node_first"
+        }
+    )
+    graph.add_edge("node_last", END)
+    
+    # Execute graph
+    await graph.invoke()
+    
+    # Verify final state
+    assert graph.state.state["step"] == 5
+    assert graph.state.state["message"] == "Node last executed"
+    assert graph.run_state.step_count > 0
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

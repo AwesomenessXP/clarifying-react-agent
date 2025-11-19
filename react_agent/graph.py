@@ -429,6 +429,9 @@ class Graph:
         # TODO: implement termination
         # - end only if there are no active nodes left, or ALL active nodes are END
         # - DO NOT end if not all nodes are END, one branch might have finished, but not the others
+        # TODO: test simple loops
+        # TODO: test infinite loops
+        # TODO: test failure / retries
         # TODO: be able to detect and handle cycles, and a max recursion limit
 
         # TODO: be able to traverse nodes serially
@@ -531,8 +534,8 @@ class Graph:
                 print("ending the loop, no active nodes left")
                 break
 
-            # Temporary: end the loop after 4 iterations
-            if self.run_state.step_count == 4:
+            # Temporary: end the loop after 5 iterations
+            if self.run_state.step_count == 5:
                 break
             
             self.run_state.step_count += 1
