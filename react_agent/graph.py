@@ -269,7 +269,7 @@ class Graph:
             return self.adjacency_list[node_id]
         raise ValueError(f"Node with id {node_id} not found in the graph.")
     
-    def activate_children_nodes(self, active_node_id: str):
+    def activate_local_children_nodes(self, active_node_id: str):
         active_children = []
         children = self.adjacency_list.get(active_node_id)
         print("children of", active_node_id, ": ", children)
@@ -302,6 +302,10 @@ class Graph:
                 active_children.append(child_id)
 
         return active_children
+    
+    def activate_shared_children_nodes(self, active_children):
+        for child in active_children:
+            self.run_state.nodes_status_map[child] = NodeActiveStatus.ACTIVE
     
     def get_node_parents(self, child_node_id: str) -> int:
         parents_count = 0
@@ -408,7 +412,7 @@ class Graph:
         # FINISHED: create global state dict and initialize only when invoke() runs -> each node needs a way to look at state
         # FINISHED: be able to make node functions and pass global state as a param
         #
-        # TODO: CREATE BRANCHING LOGIC
+        # FINISHED: CREATE BRANCHING LOGIC
         # FINISHED: 1. implement router nodes, add to Graph class
         # FINISHED: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
         # FINISHED: 1.2 if the current node has a router node as a child, pass state to it and execute callable
@@ -465,11 +469,10 @@ class Graph:
                 print("new state from graph: ", new_state.state)
 
                 # Get the children of the init node
-                active_children = self.activate_children_nodes(init_node_id)
+                active_children = self.activate_local_children_nodes(init_node_id)
 
                 # Activate the child nodes globally for the next superstep
-                for child in active_children:
-                    self.run_state.nodes_status_map[child] = NodeActiveStatus.ACTIVE
+                self.activate_shared_children_nodes(active_children)
 
                 # END OF INIT NODE CONDITION
             else:
@@ -515,15 +518,14 @@ class Graph:
                 active_children = []
 
                 for active_node_id in active_nodes:
-                    active_children = self.activate_children_nodes(active_node_id)
+                    active_children = self.activate_local_children_nodes(active_node_id)
                     # Deduplicate children if multiple nodes activate the same ones
                     for child in active_children:
                         if child not in active_children: 
                             active_children.append(child)
 
                 # Activate the child nodes globally for the next superstep
-                for child in active_children:
-                    self.run_state.nodes_status_map[child] = NodeActiveStatus.ACTIVE
+                self.activate_shared_children_nodes(active_children)
 
             if len(self.get_active_nodes()) == 0:
                 print("ending the loop, no active nodes left")
