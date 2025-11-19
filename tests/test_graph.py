@@ -7,7 +7,8 @@ from react_agent.graph import Graph, State, START, END
 from react_agent.node import Node, ConditionalNode
 from typing import Dict, TypedDict
 
-def test_simple_linear_flow():
+@pytest.mark.asyncio
+async def test_simple_linear_flow():
     """Test a simple linear flow: START -> node1 -> node2 -> node3 -> END"""
     def node1(state: Dict):
         print("running node1")
@@ -42,7 +43,7 @@ def test_simple_linear_flow():
     graph.add_edge("node2", END)
     
     # Execute graph
-    graph.invoke()
+    await graph.invoke()
     
     # Verify final state
     # assert graph.state.state["step"] == 3

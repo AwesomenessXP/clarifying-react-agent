@@ -315,8 +315,29 @@ class Graph:
             case _:
                 new_active_status = NodeActiveStatus.ACTIVE
         return new_active_status
+    
+    def run_bsp(self, node_id):
+        node = self.get_node_by_id(node_id)
+        self.run_state.nodes_status_map[node_id] = NodeActiveStatus.ACTIVE
+        return self.run_node_callable(node).msg
 
-    def invoke(self):
+    def apply_partial_update(self, msg):
+        node = msg.node
+        node.internal_inbox_msg = msg
+        self.node_registry[node.id] = node
+
+    async def run_bsp_async(self, active_node_ids):
+        loop = asyncio.get_running_loop()
+
+        msgs = await asyncio.gather(*[
+            loop.run_in_executor(None, self.run_bsp, node_id)
+            for node_id in active_node_ids
+        ])
+
+        for msg in msgs:
+            self.apply_partial_update(msg)
+
+    async def invoke(self):
         # This is where the active node passes information about what nodes to activate in the future
         # ITERATION 0:
         # - init node doesn't look at the inbox_msgs
@@ -449,20 +470,7 @@ class Graph:
                 print("active nodes: ", active_nodes)
 
                 # Process each active node (not in parallel yet)
-                # TODO: MAKE THE NODES RUN IN PARALLEL!!
-                for active_node_id in active_nodes:
-                    print("node", active_node_id)
-                    active_node = self.get_node_by_id(active_node_id)
-                    self.run_state.nodes_status_map[active_node_id] = NodeActiveStatus.ACTIVE
-                    print("status: ", active_node.status)
-                    res = self.run_node_callable(active_node)
-                    print("status: ", active_node.status)
-                    print("res: ", res)
-
-                    # Update each node's internal buffer and update the registry with the updated node
-                    active_node = res.msg.node
-                    active_node.internal_inbox_msg = res.msg
-                    self.node_registry[active_node.id] = active_node
+                await self.run_bsp_async(active_nodes)
 
                 # ------ BARRIER --------------------
 
