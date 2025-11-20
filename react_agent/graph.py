@@ -168,6 +168,10 @@ class Graph:
         self.state = State(state.state)
 
     def add_node(self, custom_name: str, func: Callable):
+        # Validate the custom_name isn't a reserved keyword
+        if (custom_name == START) or (custom_name == END):
+            raise ValueError(f"Node with {custom_name} can't be used because it's a reserved keyword")
+
         # Validate the node doesn't already exist
         if self.node_registry.get(custom_name) is not None:
             raise ValueError(f"Node with id {custom_name} already exists in the node list.")
@@ -201,6 +205,13 @@ class Graph:
         return True
 
     def add_edge(self, from_node: str, to_node: str):
+        # Validate that START and END are in the right position
+        if from_node == END:
+            raise ValueError(f"ERROR: node {from_node} is in the wrong position")
+        
+        if to_node == START:
+            raise ValueError(f"ERROR: node {to_node} is in the wrong position")
+
         # Validate if this is the initial edge
         if from_node == START:
             if self.adjacency_list.get(START) is not None:
@@ -277,6 +288,8 @@ class Graph:
             # If there's more than one router node, throw an error
             router_node_count = 0
             for child_id in children:
+
+                # If the node terminates, remove END from the children
                 if child_id == END:
                     children.remove(child_id)
                 child_node = self.node_registry.get(child_id)
@@ -287,6 +300,8 @@ class Graph:
             active_children = children
         elif len(children) == 1:
             child_id = children[0]
+
+            # Check if the node terminated
             if child_id == END:
                 children.remove(child_id)
                 return children
@@ -305,6 +320,11 @@ class Graph:
                     print("routing to node:", result_node_id)
             elif isinstance(child_node, Node):
                 active_children.append(child_id)
+        elif len(children) == 0:
+            # No more children left, time to terminate the node
+            curr_node = self.get_node_by_id(active_node_id)
+            curr_node.status = NodeStatus.TERMINATED
+            self.node_registry[curr_node.id] = curr_node
 
         return active_children
     
@@ -541,8 +561,8 @@ class Graph:
                 break
 
             # Temporary: end the loop after 5 iterations
-            # if self.run_state.step_count == 5:
-            #     break
+            if self.run_state.step_count == 5:
+                break
             
             self.run_state.step_count += 1
             print("\n")
