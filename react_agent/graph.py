@@ -357,6 +357,14 @@ class Graph:
 
             node.status = NodeStatus.SUCCESS
             node.is_visited = True
+
+            if not isinstance(res, Dict) and isinstance(node, Node):
+                raise ValueError(f"ERROR: Expected dict as output type")
+            elif isinstance(node, Node):
+                for key in res.keys():
+                    if key not in self.state.state:
+                        raise KeyError(f"ERROR: Key {key} not found in state")
+
             node_result = NodeResult(
                 status = node.status,
                 msg = Message(
@@ -364,6 +372,10 @@ class Graph:
                     content = res
                 )
             )
+        except ValueError as e:
+            raise
+        except KeyError as e:
+            raise 
         except Exception as e:
             node.status = NodeStatus.FAILED
             node.is_visited = True
@@ -414,6 +426,13 @@ class Graph:
 
         for msg in msgs:
             self.apply_partial_update(msg)
+
+    def compile(self):
+        # Freeze the graph and ensure no nodes / edges can be added after compilation
+        # Throw an error if compile() is called before the graph is fully created, or after invoke()
+        # Validate that there are no orphaned nodes
+        # Validate that START and END are present
+        pass
 
     async def invoke(self):
         print("adjacency list: ", json.dumps(self.adjacency_list, indent = 2))
@@ -507,10 +526,11 @@ class Graph:
                 # Activate the child nodes globally for the next superstep
                 self.activate_shared_children_nodes(active_children)
 
+            # End if all nodes have finished running
             if len(self.get_active_nodes()) == 0:
                 break
 
-            # Temporary: end the loop after n iterations
+            # End the loop after n iterations
             if self.run_state.step_count >= self.run_state.max_retries - 1:
                 break
             

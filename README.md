@@ -74,10 +74,11 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
   - DO NOT end if not all nodes are END, one branch might have finished, but not the others
 - ✅ Test simple loops
 - ✅ Add a max recursion limit
+- ✅ Save all states in a global list
 
 ### ☐ TODO
 
-- ☐ Save all states in a global list
+- ☐ Create compile() and validate the structure of the directed graph
 - ☐ Test failure / retries
 
 ## Usage
