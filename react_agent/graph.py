@@ -82,10 +82,14 @@ class RunState:
     """
     def __init__(self):
         self.step_count = 0
+        self.max_retries = 100
 
         # Message buffers for syncing data between nodes
         self.inbox_msgs: List[Message] = []
         self.nodes_status_map: Dict[str, NodeStatus] = {}
+
+    def set_max_retries(self, n: int):
+        self.max_retries = n
 
     def get_type(self, x):
         match x:
@@ -452,13 +456,12 @@ class Graph:
         # 4. If no router, set all children to active
 
         # TODO: save all states in a global list
-        # TODO: implement termination
+        # FINISHED: implement termination
         # - end only if there are no active nodes left, or ALL active nodes are END
         # - DO NOT end if not all nodes are END, one branch might have finished, but not the others
-        # TODO: test simple loops
-        # TODO: test infinite loops
+        # FINISHED: test simple loops
         # TODO: test failure / retries
-        # TODO: be able to detect and handle cycles, and a max recursion limit
+        # FINISHED: add a max recursion limit
 
         # TODO: be able to traverse nodes serially
         print("\n")
@@ -560,8 +563,8 @@ class Graph:
                 print("ending the loop, no active nodes left")
                 break
 
-            # Temporary: end the loop after 5 iterations
-            if self.run_state.step_count == 5:
+            # Temporary: end the loop after n iterations
+            if self.run_state.step_count == self.run_state.max_retries:
                 break
             
             self.run_state.step_count += 1

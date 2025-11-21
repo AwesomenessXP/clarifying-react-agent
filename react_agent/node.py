@@ -26,10 +26,9 @@ class NodeStatus(Enum):
         return f"NodeStatus.{self.name}"
 
 class BaseNode(abc.ABC):
-    def __init__(self, id: str, func: Callable, max_retries: int = 15, status: NodeStatus = NodeStatus.INITIALIZED):
+    def __init__(self, id: str, func: Callable, status: NodeStatus = NodeStatus.INITIALIZED):
         self.id = id
         self.callable = func
-        self.max_retries = max_retries
         self.is_visited = False
         self.status = status
         self.internal_inbox_msg = None # internal message for isolating updates
@@ -83,4 +82,4 @@ class ConditionalNode(BaseNode):
 
     """
     def __repr__(self):
-        return f"ConditionalNode(id: {self.id}, callable={self.callable.__name__}, max_retries={self.max_retries}, status={self.status})"
+        return f"ConditionalNode(id: {self.id}, callable={self.callable.__name__}, status={self.status})"

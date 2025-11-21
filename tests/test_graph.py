@@ -201,70 +201,33 @@ async def test_simple_loop():
     assert graph.run_state.step_count > 0
 
 @pytest.mark.asyncio
-async def test_simple_end_state():
+async def test_simple_infinite_loop():
     def node_first(state: Dict):
         print("running node_first")
         return {"step": 1, "message": "Node first executed"}
     
-    def node_second(state: Dict):
-        print("running node_second")
-        return {"step": 2, "message": "Node second executed"}
-    
-    def node_third(state: Dict):
-        print("running node_third")
-        return {"step": 3, "message": "Node third executed"}
+    def router(state: Dict):
+        # Return a key to the next node based on state
+        if state["step"] != -1:
+            return "no_result"
+        else:
+            return "has_result"
     
     state = State({"step": 0, "message": "Initial state"})
     graph = Graph(state)
     
     # Add nodes
     graph.add_node("node_first", func=node_first)
-    graph.add_node("node_second", func=node_second)
-    graph.add_node("node_third", func=node_third)
+    graph.add_conditional_node("router", func=router)
     
     # Add edges
     graph.add_edge(START, "node_first")
-    # graph.add_edge("node_first", "node_first")
-    graph.add_edge("node_first", END)
+    graph.add_edge("node_first", "node_first")
     
     # Execute graph
     await graph.invoke()
-
-# @pytest.mark.asyncio
-# async def test_simple_infinite_loop():
-#     def node_first(state: Dict):
-#         print("running node_first")
-#         return {"step": 1, "message": "Node first executed"}
     
-#     def router(state: Dict):
-#         # Return a key to the next node based on state
-#         if state["step"] != -1:
-#             return "no_result"
-#         else:
-#             return "has_result"
-    
-#     state = State({"step": 0, "message": "Initial state"})
-#     graph = Graph(state)
-    
-#     # Add nodes
-#     graph.add_node("node_first", func=node_first)
-#     graph.add_conditional_node("router", func=router)
-    
-#     # Add edges
-#     graph.add_edge(START, "node_first")
-#     graph.add_edge("node_first", "node_first")
-#     graph.add_conditional_edges(
-#         "router",
-#         {
-#             "has_result": "node_first",
-#             "no_result": "node_first"
-#         }
-#     )
-    
-#     # Execute graph
-#     await graph.invoke()
-    
-#     # Be able to stop the loop after x max loops
+    # Be able to stop the loop after x max loops
 
 
 if __name__ == "__main__":
