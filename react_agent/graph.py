@@ -170,7 +170,7 @@ class Graph:
         self.node_registry = {}
         self.run_state = RunState()
         self.state = State(state.state)
-        self.state_history: List[State] = [state]
+        self.history: List[State] = [state]
 
     def add_node(self, custom_name: str, func: Callable):
         # Validate the custom_name isn't a reserved keyword
@@ -346,6 +346,14 @@ class Graph:
                 parents_count += 1
         return parents_count
     
+    def validate_node_callable_res(self, node: BaseNode, res):
+        if not isinstance(res, Dict) and isinstance(node, Node):
+            raise ValueError(f"ERROR: Expected dict as output type")
+        elif isinstance(node, Node):
+            for key in res.keys():
+                if key not in self.state.state:
+                    raise KeyError(f"ERROR: Key {key} not found in state")
+    
     def run_node_callable(self, node: BaseNode) -> NodeResult:
         node.status = NodeStatus.RUNNING
         try:
@@ -358,12 +366,7 @@ class Graph:
             node.status = NodeStatus.SUCCESS
             node.is_visited = True
 
-            if not isinstance(res, Dict) and isinstance(node, Node):
-                raise ValueError(f"ERROR: Expected dict as output type")
-            elif isinstance(node, Node):
-                for key in res.keys():
-                    if key not in self.state.state:
-                        raise KeyError(f"ERROR: Key {key} not found in state")
+            self.validate_node_callable_res(node, res)
 
             node_result = NodeResult(
                 status = node.status,
@@ -431,100 +434,66 @@ class Graph:
         # Freeze the graph and ensure no nodes / edges can be added after compilation
         # Throw an error if compile() is called before the graph is fully created, or after invoke()
         # Validate that there are no orphaned nodes
-        # Validate that START and END are present
+        # Validate that START and END are present and come one after the other
         pass
 
     async def invoke(self):
         print("adjacency list: ", json.dumps(self.adjacency_list, indent = 2))
         print("\n")
+        init_node_id = self.adjacency_list.get(START)
+        self.run_state.nodes_status_map[init_node_id] = NodeActiveStatus.ACTIVE
         while True:
             print("================================ SUPERSTEP ITERATION ", self.run_state.step_count, "===============================")
-            # Runs the initial step
-            if self.run_state.step_count == 0:
-                # BEGINNING OF INIT NODE CONDITION
-                init_node_id = self.adjacency_list.get(START)
-                init_node = self.get_node_by_id(init_node_id)
-                self.run_state.nodes_status_map[init_node_id] = NodeActiveStatus.ACTIVE
-                res = self.run_node_callable(init_node)
+            active_nodes = self.get_active_nodes()
 
-                # ------ BARRIER --------------------
+            # Process each active node in parallel
+            await self.run_bsp_async(active_nodes)
 
-                # update the active / inactive nodes lists based on the node result
-                new_active_status = self.update_active_status(init_node)
-                self.run_state.nodes_status_map[init_node.id] = new_active_status
-                
-                # Pass node res to global inbox_msgs buffer
-                # Since only one node is active in the beginning, we can write directly to global
-                self.run_state.inbox_msgs.append(res.msg)
-                print("global inbox msgs: ", self.run_state.inbox_msgs)
+            # ------ BARRIER --------------------
 
-                # Update the global state
-                print("old state from graph: ", self.state.state)
-                new_state = self.state._update_state(res.msg.content)
-                self.state_history.append(new_state)
-                self.state = new_state
-                print("new state from graph: ", new_state.state)
+            # superstep-local bucket for messages
+            local_inbox_msgs = []
 
-                # Get the children of the init node
-                active_children = self.activate_local_children_nodes(init_node_id)
+            # update the global active / inactive nodes lists based on the node result
+            # NOTE: check from the node_registry for the updated nodes!
+            print("active nodes: ", active_nodes)
+            for active_node_id in active_nodes:
+                node = self.get_node_by_id(active_node_id)
+                new_active_status = self.update_active_status(node)
+                self.run_state.nodes_status_map[node.id] = new_active_status
+            
+                # Pass node results to local inbox_msgs buffer
+                local_inbox_msgs.append(node.result.msg)
+            
+            print("global inbox msgs: ", self.run_state.inbox_msgs)
+            print("local inbox msgs: ", local_inbox_msgs)
 
-                # Activate the child nodes globally for the next superstep
-                self.activate_shared_children_nodes(active_children)
+            # Use a merging strategy to append to global inbox
+            # TODO: in the future, allow users to pick a merging strategy (append, overwrite, keep first)
+            print("old state from graph: ", self.state.state)
+            new_content = self.run_state.merge_state(local_inbox_msgs)
+            new_state = self.state._update_state(new_content)
+            self.history.append(new_state)
+            self.state = new_state
+            print("new state from graph: ", self.state.state)
 
-                # END OF INIT NODE CONDITION
-            else:
-                # START OF N+1 SUPERSTEP
-                # read which nodes are active in this round
-                active_nodes = self.get_active_nodes()
+            # Pass local inbox msgs to global buffer
+            self.run_state.inbox_msgs = []
+            for msg in local_inbox_msgs:
+                self.run_state.inbox_msgs.append(msg)
 
-                # Process each active node (not in parallel yet)
-                await self.run_bsp_async(active_nodes)
+            # Get the children of the active nodes and determine which to activate
+            all_active_children = []
 
-                # ------ BARRIER --------------------
+            for active_node_id in active_nodes:
+                active_children = self.activate_local_children_nodes(active_node_id)
+                # Deduplicate children if multiple nodes activate the same ones
+                for child in active_children:
+                    if child not in all_active_children: 
+                        all_active_children.append(child)
 
-                # superstep-local bucket for messages
-                local_inbox_msgs = []
-
-                # update the global active / inactive nodes lists based on the node result
-                # NOTE: check from the node_registry for the updated nodes!
-                print("active nodes: ", active_nodes)
-                for active_node_id in active_nodes:
-                    node = self.get_node_by_id(active_node_id)
-                    new_active_status = self.update_active_status(node)
-                    self.run_state.nodes_status_map[node.id] = new_active_status
-                
-                    # Pass node results to local inbox_msgs buffer
-                    local_inbox_msgs.append(node.result.msg)
-                
-                print("global inbox msgs: ", self.run_state.inbox_msgs)
-                print("local inbox msgs: ", local_inbox_msgs)
-
-                # Use a merging strategy to append to global inbox
-                # TODO: in the future, allow users to pick a merging strategy (append, overwrite, keep first)
-                print("old state from graph: ", self.state.state)
-                new_content = self.run_state.merge_state(local_inbox_msgs)
-                new_state = self.state._update_state(new_content)
-                self.state_history.append(new_state)
-                self.state = new_state
-                print("new state from graph: ", self.state.state)
-
-                # Pass local inbox msgs to global buffer
-                self.run_state.inbox_msgs = []
-                for msg in local_inbox_msgs:
-                    self.run_state.inbox_msgs.append(msg)
-
-                # Get the children of the active nodes and determine which to activate
-                active_children = []
-
-                for active_node_id in active_nodes:
-                    active_children = self.activate_local_children_nodes(active_node_id)
-                    # Deduplicate children if multiple nodes activate the same ones
-                    for child in active_children:
-                        if child not in active_children: 
-                            active_children.append(child)
-
-                # Activate the child nodes globally for the next superstep
-                self.activate_shared_children_nodes(active_children)
+            # Activate the child nodes globally for the next superstep
+            self.activate_shared_children_nodes(all_active_children)
 
             # End if all nodes have finished running
             if len(self.get_active_nodes()) == 0:

@@ -49,37 +49,119 @@ class Node(BaseNode):
     
 class ConditionalNode(BaseNode):
     """
-    WHAT CONDITIONAL NODE SHOULD DO:
-
-    ---EXAMPLE FUNCTION DEFINITION---
-        def route_decision(state):
-            # Analyze the state, e.g., check the last LLM response
-            last_message = state['messages'][-1]
-            
-            if "final answer" in last_message.lower():
-                return "end_workflow" # This must match a path name
-            elif "call tool" in last_message.lower():
-                return "tool_node" # This must match a path name
-            else:
-                return "llm_node" # This must match a path name
-
-    ---EXAMPLE CONNECTING TO GRAPH---
-    builder.add_node("router", route_decision)
-    # ... other nodes added ...
-
-    builder.add_conditional_edges(
-        # From the 'router' node...
-        "router", 
-        # Use the 'route_decision' function to decide the next path
-        route_decision, 
-        # Map the function's return values to actual nodes/paths
-        {
-            "end_workflow": END,           # Go to END if router returns "end_workflow"
-            "tool_node": "run_tool_node",  # Go to run_tool_node if router returns "tool_node"
-            "llm_node": "call_llm_node",   # Go to call_llm_node if router returns "llm_node"
-        }
-    )
-
+    Conditional Nodes are able to route to different nodes
     """
     def __repr__(self):
         return f"ConditionalNode(id: {self.id}, callable={self.callable.__name__}, status={self.status})"
+    
+class ToolNode(BaseNode):
+    """
+1. Start from what you already have
+
+In your implementation right now, a node is basically:
+
+“something that takes state and returns an update to state.”
+
+So first question for you:
+
+🧠 If you squint, is a tool actually different from any other node, or is it just a node that happens to call an external system?
+
+If your runtime only cares about:
+	•	“here’s a function that takes state, returns state-delta”
+
+…then maybe the tool is just a particular kind of node with a convention.
+
+⸻
+
+2. What makes a “tool node” special?
+
+Conceptually, a tool node usually has three extra responsibilities beyond a normal node:
+	1.	Structured input
+It needs to pull specific fields from the state (or messages) and map them into tool arguments.
+Where in your state would you expect the tool input to live?
+A messages list? A tool_request field? Something else?
+	2.	Side effects / IO boundary
+It crosses the boundary into the outside world (HTTP request, DB query, etc).
+Does your scheduler need to know this is “special” IO,
+or can it just treat it as “a node that might be slow and async”?
+	3.	Structured output + logging
+It needs to:
+	•	Put the tool result back into the state (structured)
+	•	Optionally append a “tool message” to your messages history
+In your state shape, where will the tool result live?
+And how will you remember which tool was called later for replay/debugging?
+
+Once you answer those, the shape of a “tool node” almost falls out.
+
+⸻
+
+3. Who should know it’s a “tool node”?
+
+Another key design question:
+
+Should your runtime/graph engine know about “tool nodes” as a special type,
+or should a tool node be just a normal node whose inner function follows a convention?
+
+Two paths:
+	•	Engine-aware:
+	•	You add a kind = "tool" or similar in your node metadata.
+	•	The runtime might, for example, treat it differently for tracing, retries, or timeouts.
+	•	Engine-agnostic:
+	•	To the engine, it’s just node(name="call_ironscales", func=...).
+	•	The func internally knows it’s calling a tool and how to update state.
+
+Which direction fits the philosophy of your engine so far?
+
+⸻
+
+4. Think in terms of “adapters”
+
+A nice way to think of a tool node:
+
+It’s an adapter between your graph state and a “tool function”.
+
+So mentally, you could separate:
+	•	A tool definition: “Given some inputs, I hit this API and return a result.”
+	•	A tool node: “Given the current state, I:
+	•	Extract the right inputs
+	•	Call the tool
+	•	Put the result back into state
+	•	Log a message in messages describing what happened”
+
+Ask yourself:
+
+Where in your codebase do you want that adapter logic to live?
+Close to the tool definition, or inside generic node wrappers?
+
+⸻
+
+5. Messages + tracing
+
+You already decided you’ll have a messages list in the state.
+
+So a key design question:
+
+When a tool node runs, what message entries should it append?
+
+Typical pattern conceptually:
+	•	Before tool call: a message like “agent requested tool X with args Y”
+	•	After tool call: a message like “tool X responded with Z”
+
+If you solve what those messages look like, and where they go in state, you’re basically defining what it means to be a tool node in your engine.
+
+⸻
+
+6. Questions to answer for yourself (design spec)
+
+If you answer these, you’ve designed your tool node:
+	1.	How does a node know which tool it represents?
+	2.	Where in state does it look to build the tool’s input?
+	3.	How does it represent success/failure in the state after calling the tool?
+	4.	What entries does it append to messages so future nodes (and you, debugging) can see the tool call happened?
+	5.	Does the scheduler/runtime need to treat tool nodes differently, or are they just “slow/effectful nodes” from its point of view?
+
+Write those answers out in English first. Once you’re happy with that conceptual contract, turning it into code will be almost mechanical.
+
+If you want, you can tell me your current state shape (fields you already have), and I’ll ask you very targeted questions to help you “click” into one specific, clean design.
+    """
+    pass

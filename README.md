@@ -62,7 +62,7 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
   - ✅ Make node a protocol/interface so router nodes can use the same blueprint as base node
   - ✅ If the current node has a router node as a child, pass state to it and execute callable
   - ✅ Activate the node in callable result → add to internal buffer (if not init node) → add to active nodes list at barrier
-  - ✅ If the current node has more than one child node → handle parallelism later on
+  - ✅ If the current node has more than one child node → handle parallelism
   - ✅ If the current node has one child → add to internal buffer (if not init node) → add to active nodes list at barrier
 - ✅ Activate next superstep's nodes
   - Visit node children
@@ -79,7 +79,9 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
 ### ☐ TODO
 
 - ☐ Create compile() and validate the structure of the directed graph
+- ☐ Wrap tools in ToolNode and add to_node obj to Message class for sending tool messages
 - ☐ Test failure / retries
+- ☐ Begin integrating OpenAI API for agent
 
 ## Usage
 
