@@ -1,10 +1,10 @@
 # Clarifying React Agent
 
-A graph-based execution engine for building reactive agents with conditional branching, state management, and asynchronous node execution.
+A graph-based execution engine inspired by LangGraph for building reactive agents with conditional branching, state management, and asynchronous node execution.
 
 ## Overview
 
-This project implements a React Agent framework that uses a Bulk Synchronous Parallel (BSP) execution model. The engine supports:
+This project implements a simplified LangGraph architecture that uses a Bulk Synchronous Parallel (BSP) execution model. The engine supports:
 
 - **Graph-based execution**: Nodes connected via edges form a directed graph
 - **Conditional branching**: Router nodes enable dynamic path selection
@@ -79,7 +79,6 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
 
 - ☐ Save all states in a global list
 - ☐ Test failure / retries
-- ☐ Be able to traverse nodes serially
 
 ## Usage
 
