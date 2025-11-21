@@ -170,6 +170,7 @@ class Graph:
         self.node_registry = {}
         self.run_state = RunState()
         self.state = State(state.state)
+        self.state_history: List[State] = [state]
 
     def add_node(self, custom_name: str, func: Callable):
         # Validate the custom_name isn't a reserved keyword
@@ -415,55 +416,7 @@ class Graph:
             self.apply_partial_update(msg)
 
     async def invoke(self):
-        # This is where the active node passes information about what nodes to activate in the future
-        # ITERATION 0:
-        # - init node doesn't look at the inbox_msgs
-        # - set node status to running
-        # - init node runs on default
-        # - depending on node res, update status, then pass current node state
-        # - pass node res to inbox_msgs
-        # - pass current node errors -> handle errors later
-        # - visit children and see which nodes to activate in the next superstep
-        # 
-        # ITERATION N:
-        # - set node status to running
-        # - for each node, determine if they will be inactive in this step or not
-        # - read inbox msgs sent to this node
-        # - pass current node results
-        # - pass current node's state (if terminated stop the engine, if retry, make the node active again)
-        # - pass any errors sent from the current node -> handle errors later
-        # - TRICKY: set a node to active / inactive based on conditional branching
-        # 
-        # ITERATION N+1:
-        # - TRICKY: handle convergence later, can be append only for now
-        # - prev nodes could have sent to the same message -> have a unique identifier so you know who sent the message
-
-        # FINISHED: create global state dict and initialize only when invoke() runs -> each node needs a way to look at state
-        # FINISHED: be able to make node functions and pass global state as a param
-        #
-        # FINISHED: CREATE BRANCHING LOGIC
-        # FINISHED: 1. implement router nodes, add to Graph class
-        # FINISHED: 1.1 make node a protocol / interface so router nodes can use the same blueprint as base node
-        # FINISHED: 1.2 if the current node has a router node as a child, pass state to it and execute callable
-        # FINISHED: 1.2 (cont) activate the node in callable res -> add to internal buffer (if not init node) -> add to active nodes list at barrier
-        # FINISHED: 1.3 if the current node has more than one child node -> handle parallelism later on
-        # FINISHED: 1.4 if the current node has one child -> add to internal buffer (if not init node) -> add to active nodes list at barrier
-
-        # FINISHED: activate next superstep's nodes
-        # 2. visit node children
-        # 2.5 call router function
-        # 3. determine next active node from router function result
-        # 4. If no router, set all children to active
-
-        # TODO: save all states in a global list
-        # FINISHED: implement termination
-        # - end only if there are no active nodes left, or ALL active nodes are END
-        # - DO NOT end if not all nodes are END, one branch might have finished, but not the others
-        # FINISHED: test simple loops
-        # TODO: test failure / retries
-        # FINISHED: add a max recursion limit
-
-        # TODO: be able to traverse nodes serially
+        print("adjacency list: ", json.dumps(self.adjacency_list, indent = 2))
         print("\n")
         while True:
             print("================================ SUPERSTEP ITERATION ", self.run_state.step_count, "===============================")
@@ -471,15 +424,9 @@ class Graph:
             if self.run_state.step_count == 0:
                 # BEGINNING OF INIT NODE CONDITION
                 init_node_id = self.adjacency_list.get(START)
-                print("adjacency list: ", json.dumps(self.adjacency_list, indent = 2))
                 init_node = self.get_node_by_id(init_node_id)
                 self.run_state.nodes_status_map[init_node_id] = NodeActiveStatus.ACTIVE
-                print("node statuses: ", self.run_state.nodes_status_map)
-
-                print("status: ", init_node.status)
                 res = self.run_node_callable(init_node)
-                print("status: ", init_node.status)
-                print("res: ", res)
 
                 # ------ BARRIER --------------------
 
@@ -490,13 +437,12 @@ class Graph:
                 # Pass node res to global inbox_msgs buffer
                 # Since only one node is active in the beginning, we can write directly to global
                 self.run_state.inbox_msgs.append(res.msg)
-                print("inbox msgs: ", self.run_state.inbox_msgs)
-                print("node statuses: ", self.run_state.nodes_status_map)
+                print("global inbox msgs: ", self.run_state.inbox_msgs)
 
                 # Update the global state
                 print("old state from graph: ", self.state.state)
-                print("result: ", res)
                 new_state = self.state._update_state(res.msg.content)
+                self.state_history.append(new_state)
                 self.state = new_state
                 print("new state from graph: ", new_state.state)
 
@@ -512,8 +458,6 @@ class Graph:
                 # read which nodes are active in this round
                 active_nodes = self.get_active_nodes()
 
-                print("active nodes: ", active_nodes)
-
                 # Process each active node (not in parallel yet)
                 await self.run_bsp_async(active_nodes)
 
@@ -524,27 +468,31 @@ class Graph:
 
                 # update the global active / inactive nodes lists based on the node result
                 # NOTE: check from the node_registry for the updated nodes!
+                print("active nodes: ", active_nodes)
                 for active_node_id in active_nodes:
-                    print("node", active_node_id)
                     node = self.get_node_by_id(active_node_id)
                     new_active_status = self.update_active_status(node)
                     self.run_state.nodes_status_map[node.id] = new_active_status
                 
                     # Pass node results to local inbox_msgs buffer
                     local_inbox_msgs.append(node.result.msg)
-                    print("node result: ", node.result.msg.content)
                 
                 print("global inbox msgs: ", self.run_state.inbox_msgs)
                 print("local inbox msgs: ", local_inbox_msgs)
-                print("node statuses: ", self.run_state.nodes_status_map)
 
                 # Use a merging strategy to append to global inbox
                 # TODO: in the future, allow users to pick a merging strategy (append, overwrite, keep first)
                 print("old state from graph: ", self.state.state)
                 new_content = self.run_state.merge_state(local_inbox_msgs)
                 new_state = self.state._update_state(new_content)
+                self.state_history.append(new_state)
                 self.state = new_state
                 print("new state from graph: ", self.state.state)
+
+                # Pass local inbox msgs to global buffer
+                self.run_state.inbox_msgs = []
+                for msg in local_inbox_msgs:
+                    self.run_state.inbox_msgs.append(msg)
 
                 # Get the children of the active nodes and determine which to activate
                 active_children = []
@@ -560,11 +508,10 @@ class Graph:
                 self.activate_shared_children_nodes(active_children)
 
             if len(self.get_active_nodes()) == 0:
-                print("ending the loop, no active nodes left")
                 break
 
             # Temporary: end the loop after n iterations
-            if self.run_state.step_count == self.run_state.max_retries:
+            if self.run_state.step_count >= self.run_state.max_retries - 1:
                 break
             
             self.run_state.step_count += 1

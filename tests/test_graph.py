@@ -204,7 +204,7 @@ async def test_simple_loop():
 async def test_simple_infinite_loop():
     def node_first(state: Dict):
         print("running node_first")
-        return {"step": 1, "message": "Node first executed"}
+        return {"step": state["step"] + 1, "message": "Node first executed"}
     
     def router(state: Dict):
         # Return a key to the next node based on state
@@ -228,7 +228,7 @@ async def test_simple_infinite_loop():
     await graph.invoke()
     
     # Be able to stop the loop after x max loops
-
+    assert graph.state.state["step"] == 100
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
