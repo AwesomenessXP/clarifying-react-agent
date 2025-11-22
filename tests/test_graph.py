@@ -25,6 +25,10 @@ async def test_simple_linear_flow():
         print("running node4")
         return {"step": 4, "message": "Node 4 executed"}
     
+    def node_last(state: Dict):
+        print("running node_last")
+        return {"step": 5, "message": "Node last executed"}
+    
     state = State({"step": 0, "message": "Initial state"})
     graph = Graph(state)
     
@@ -42,6 +46,7 @@ async def test_simple_linear_flow():
     graph.add_edge("node4", END)
     
     # Execute graph
+    graph.compile()
     await graph.invoke()
     
     # Verify final state
@@ -94,6 +99,7 @@ async def test_conditional_edges():
     graph.add_edge("node3", END)
     
     # Execute graph
+    graph.compile()
     await graph.invoke()
     
 #     # Verify that router correctly routed to node3 (since node1 returns "Hello, world!")
@@ -145,6 +151,7 @@ async def test_concurrent_nodes():
     graph.add_edge("node3", END)
     
     # Execute graph
+    graph.compile()
     await graph.invoke()
     
 #     # Verify execution occurred
@@ -192,6 +199,7 @@ async def test_simple_loop():
     graph.add_edge("node_last", END)
     
     # Execute graph
+    graph.compile()
     await graph.invoke()
     
     # Verify final state
@@ -224,6 +232,7 @@ async def test_simple_infinite_loop():
     graph.add_edge("node_first", "node_first")
     
     # Execute graph
+    graph.compile()
     await graph.invoke()
     
     # Be able to stop the loop after x max loops

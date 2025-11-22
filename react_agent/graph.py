@@ -172,7 +172,14 @@ class Graph:
         self.state = State(state.state)
         self.history: List[State] = [state]
 
+        # Freeze the graph during compile
+        self.frozen = False
+
     def add_node(self, custom_name: str, func: Callable):
+        # Don't modify the graph after compilation
+        if self.frozen == True:
+            raise RuntimeError(f"Error: cannt add node after compilation")
+
         # Validate the custom_name isn't a reserved keyword
         if (custom_name == START) or (custom_name == END):
             raise ValueError(f"Node with {custom_name} can't be used because it's a reserved keyword")
@@ -185,6 +192,10 @@ class Graph:
         self.adjacency_list[custom_name] = []
 
     def add_conditional_node(self, custom_name: str, func: Callable):
+        # Don't modify the graph after compilation
+        if self.frozen == True:
+            raise RuntimeError(f"Error: cannt add conditional node after compilation")
+        
         # Validate the node doesn't already exist
         if self.node_registry.get(custom_name) is not None:
             raise ValueError(f"Node with id {custom_name} already exists in the node list.")
@@ -210,6 +221,10 @@ class Graph:
         return True
 
     def add_edge(self, from_node: str, to_node: str):
+        # Don't modify the graph after compilation
+        if self.frozen == True:
+            raise RuntimeError(f"Error: cannt add edge after compilation")
+
         # Validate that START and END are in the right position
         if from_node == END:
             raise ValueError(f"ERROR: node {from_node} is in the wrong position")
@@ -246,6 +261,10 @@ class Graph:
         self.adjacency_list[from_node].append(to_node)
 
     def add_conditional_edges(self, custom_name: str, result_map: Dict):
+        # Don't modify the graph after compilation
+        if self.frozen == True:
+            raise RuntimeError(f"Error: cannt add conditional edges after compilation")
+
         if self.node_registry.get(custom_name) is None:
             raise ValueError(f"Node {custom_name} hasn't been added to the graph yet")
         
@@ -432,12 +451,16 @@ class Graph:
 
     def compile(self):
         # Freeze the graph and ensure no nodes / edges can be added after compilation
-        # Throw an error if compile() is called before the graph is fully created, or after invoke()
+        self.frozen = True
+        # Throw an error if compile() is called before the graph is fully created
         # Validate that there are no orphaned nodes
         # Validate that START and END are present and come one after the other
         pass
 
     async def invoke(self):
+        if self.frozen is False:
+            raise RuntimeError(f"Error: graph must be compiled before invocation")
+
         print("adjacency list: ", json.dumps(self.adjacency_list, indent = 2))
         print("\n")
         init_node_id = self.adjacency_list.get(START)
