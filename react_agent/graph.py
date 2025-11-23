@@ -174,6 +174,7 @@ class Graph:
 
         # Freeze the graph during compile
         self.frozen = False
+        self.start_and_end = []
 
     def add_node(self, custom_name: str, func: Callable):
         # Don't modify the graph after compilation
@@ -237,6 +238,7 @@ class Graph:
             if self.adjacency_list.get(START) is not None:
                 raise ValueError(f"ERROR: another node has already been initialized!")
             self.adjacency_list[START] = to_node
+            self.start_and_end.append(START)
             return
         
         # Validate the to_node exists in the registry
@@ -245,6 +247,7 @@ class Graph:
         
         if to_node == END:
             self.adjacency_list[from_node].append(to_node)
+            self.start_and_end.append(END)
             return
         
         if not self.has_state_dict(to_node):
@@ -485,12 +488,10 @@ class Graph:
         if self.adjacency_list.get(START) == None:
             raise RuntimeError(f"Error: no START node found")
         
-        start_found = False
-        for key, value in self.adjacency_list.items():
-            if key == START:
-                start_found = True
-            if isinstance(value, list) and END in value and start_found is False:
-                raise RuntimeError(f"Error: START node must come before END node")
+        flow_list = self.start_and_end
+        if START in flow_list and END in flow_list:
+            if flow_list.index(START) > flow_list.index(END):
+                raise RuntimeError(f"Error: START node should not come after END node")
 
     async def invoke(self):
         if self.frozen is False:
