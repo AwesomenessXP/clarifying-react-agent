@@ -91,7 +91,7 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
 from react_agent.graph import Graph, State, START, END
 
 # Initialize graph with initial state
-initial_state = State({"query": "Hello, world!"})
+initial_state = State({"query": "Hello, world!", "message": "Hiiii"})
 graph = Graph(initial_state)
 
 # Define node functions
