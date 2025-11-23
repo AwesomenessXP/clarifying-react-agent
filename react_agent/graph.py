@@ -452,8 +452,36 @@ class Graph:
     def compile(self):
         # Freeze the graph and ensure no nodes / edges can be added after compilation
         self.frozen = True
-        # Throw an error if compile() is called before the graph is fully created
-        # Validate that there are no orphaned nodes
+        # node_registry_ids = {k: v for k, v in self.node_registry.items() if isinstance(v, Node)}
+
+        # Validate that there are no orphaned nodes (no child nodes, no parent nodes)
+        for node_id in self.node_registry.keys():
+            # Check if it is the last node (no children)
+            if self.adjacency_list.get(node_id) == END:
+                continue
+
+            # Check for no child nodes
+            if not self.node_registry.get(node_id):
+                raise RuntimeError(f"Error: node {node_id} does not route to any nodes")
+            
+            # Check if it is the first node (no parents)
+            if self.adjacency_list.get(START) == node_id:
+                continue
+            
+            # Check for no parent nodes
+            has_parents = False
+            for parent_id in self.node_registry.keys():
+                parent_edge_nodes = self.adjacency_list.get(parent_id)
+                if isinstance(parent_edge_nodes, dict):
+                    parent_edge_nodes = list(parent_edge_nodes.values())
+
+                if parent_edge_nodes and node_id in parent_edge_nodes:
+                    has_parents = True
+                    break
+            
+            if has_parents == False:
+                raise RuntimeError(f"Error: node {node_id} is not routed to by any node") 
+        
         # Validate that START and END are present and come one after the other
         pass
 
