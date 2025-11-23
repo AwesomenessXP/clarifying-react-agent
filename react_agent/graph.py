@@ -174,7 +174,7 @@ class Graph:
 
         # Freeze the graph during compile
         self.frozen = False
-        self.start_and_end = []
+        self.has_start = False
 
     def add_node(self, custom_name: str, func: Callable):
         # Don't modify the graph after compilation
@@ -238,7 +238,7 @@ class Graph:
             if self.adjacency_list.get(START) is not None:
                 raise ValueError(f"ERROR: another node has already been initialized!")
             self.adjacency_list[START] = to_node
-            self.start_and_end.append(START)
+            self.has_start = True
             return
         
         # Validate the to_node exists in the registry
@@ -246,8 +246,9 @@ class Graph:
             raise ValueError(f"Node {to_node} hasn't been added to the graph yet")
         
         if to_node == END:
+            if self.has_start is False:
+                raise RuntimeError(f"Error: START node must come before END node")
             self.adjacency_list[from_node].append(to_node)
-            self.start_and_end.append(END)
             return
         
         if not self.has_state_dict(to_node):
@@ -484,14 +485,9 @@ class Graph:
             if has_parents == False:
                 raise RuntimeError(f"Error: node {node_id} is not routed to by any node") 
         
-        # Validate that START is present and comes before END
+        # Validate that START is present
         if self.adjacency_list.get(START) == None:
             raise RuntimeError(f"Error: no START node found")
-        
-        flow_list = self.start_and_end
-        if START in flow_list and END in flow_list:
-            if flow_list.index(START) > flow_list.index(END):
-                raise RuntimeError(f"Error: START node should not come after END node")
 
     async def invoke(self):
         if self.frozen is False:
