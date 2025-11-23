@@ -213,13 +213,6 @@ async def test_simple_infinite_loop():
         print("running node_first")
         return {"step": state["step"] + 1, "message": "Node first executed"}
     
-    def router(state: Dict):
-        # Return a key to the next node based on state
-        if state["step"] != -1:
-            return "no_result"
-        else:
-            return "has_result"
-    
     state = State({"step": 0, "message": "Initial state"})
     graph = Graph(state)
     

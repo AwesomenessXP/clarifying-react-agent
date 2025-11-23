@@ -452,7 +452,6 @@ class Graph:
     def compile(self):
         # Freeze the graph and ensure no nodes / edges can be added after compilation
         self.frozen = True
-        # node_registry_ids = {k: v for k, v in self.node_registry.items() if isinstance(v, Node)}
 
         # Validate that there are no orphaned nodes (no child nodes, no parent nodes)
         for node_id in self.node_registry.keys():
@@ -482,8 +481,16 @@ class Graph:
             if has_parents == False:
                 raise RuntimeError(f"Error: node {node_id} is not routed to by any node") 
         
-        # Validate that START and END are present and come one after the other
-        pass
+        # Validate that START is present and comes before END
+        if self.adjacency_list.get(START) == None:
+            raise RuntimeError(f"Error: no START node found")
+        
+        start_found = False
+        for key, value in self.adjacency_list.items():
+            if key == START:
+                start_found = True
+            if isinstance(value, list) and END in value and start_found is False:
+                raise RuntimeError(f"Error: START node must come before END node")
 
     async def invoke(self):
         if self.frozen is False:
