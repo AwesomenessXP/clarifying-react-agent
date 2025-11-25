@@ -2,6 +2,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import asyncio
 from react_agent.tool import tool
+from react_agent.tool_calling import OpenAITool
 import json
 
 class MyClass:
@@ -9,7 +10,17 @@ class MyClass:
         self.value = value
 
 @tool
-def hello_world(num_times: int, array: list[int] =[1,2,3]):
+def weather_this_month(month: int):
+    """
+    This will print the weather this month
+
+    Args:
+        month: a month number from 0 - 12
+    """
+    return f"The weather in month {month} will be slightly chilly"
+
+@tool
+def hello_world(num_times: int):
     """
     This will print Hello, World! num_times times.
 
@@ -68,5 +79,7 @@ async def main():
 
     wrapped_async_result = await wrapped_async_in_async(num_times=2)
     print("wrapped_async_result: ", wrapped_async_result)
+
+    OpenAITool.run_tools([weather_this_month])
 
 asyncio.run(main())

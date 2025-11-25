@@ -172,10 +172,13 @@ class Tool:
 
         schema = {
             "type": "function",
-            "title": f"{fn.__name__}Arguments",
+            "name": self.name,
             "description": self._get_main_description(self.description),
-            "properties": properties,
-            "required": required,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            }
         }
         return schema
     
