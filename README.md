@@ -80,8 +80,10 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
 ### ☐ TODO
 
 - ☐ Wrap tools in ToolNode and add to_node obj to Message class for sending tool messages
-- ☐ Test failure / retries
+    ☐ Parse each param's description from the docstring
+    ☐ Add the description to the args schema per param
 - ☐ Begin integrating OpenAI API for agent
+- ☐ Test failure / retries
 
 ## Usage
 

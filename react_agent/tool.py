@@ -159,6 +159,9 @@ class Tool:
             if param.default is not inspect._empty:
                 prop["default"] = param.default
 
+            # Get the description of the param:
+            prop["description"] = self._get_arg_description(self.description, name)
+
             properties[name] = prop
 
         required = [
@@ -168,12 +171,88 @@ class Tool:
         ]
 
         schema = {
-            "type": "object",
+            "type": "function",
             "title": f"{fn.__name__}Arguments",
+            "description": self._get_main_description(self.description),
             "properties": properties,
             "required": required,
         }
         return schema
+    
+    def _get_arg_description(self, description: str, target_name: str) -> str:
+        in_args = False
+        for line in description.splitlines():
+            stripped = line.strip()
+
+            # Enter Args: section
+            if stripped.startswith("Args:"):
+                in_args = True
+                continue
+
+            if in_args:
+                # End of Args section if blank line or no indent
+                if not stripped:
+                    break
+
+                # Expect lines like: "num_times: The number of times..."
+                if ":" in stripped:
+                    name, _, rest = stripped.partition(":")
+                    name = name.strip()
+                    desc = rest.strip()
+
+                    if name == target_name:
+                        print(f"Description of {name}: {desc}")
+                        return desc
+                    
+        if in_args is False:
+            raise ValueError(
+                "Error: tool must have an 'Args:' section. Invalid docstring format.\n\n"
+                "Expected an 'Args:' section formatted like:\n\n"
+                "    This will print Hello, World! num_times times.\n\n"
+                "    Args:\n"
+                "        num_times: The number of times hello world will run\n"
+                "        array: A list of numbers\n\n"
+                "Requirements:\n"
+                "  • 'Args:' must appear on its own line\n"
+                "  • Each argument must be indented and follow the pattern 'name: description'\n"
+                "  • No words should follow 'Args:' on the same line\n\n"
+                "Please update the docstring to follow this structure."
+            )
+        
+        raise ValueError(
+            "Invalid docstring format.\n\n"
+            "Expected an 'Args:' section formatted like:\n\n"
+            "    This will print Hello, World! num_times times.\n\n"
+            "    Args:\n"
+            "        num_times: The number of times hello world will run\n"
+            "        array: A list of numbers\n\n"
+            "Requirements:\n"
+            "  • 'Args:' must appear on its own line\n"
+            "  • Each argument must be indented and follow the pattern 'name: description'\n"
+            "  • No words should follow 'Args:' on the same line\n\n"
+            "Please update the docstring to follow this structure."
+        )
+    
+    def _get_main_description(self, description: str) -> str:
+        lines = description.splitlines()
+        collected = []
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Stop when we hit Args:
+            if stripped.startswith("Args:"):
+                break
+
+            collected.append(line)
+
+        # Join and clean up leading/trailing blank lines
+        desc = "\n".join(collected).strip()
+
+        return desc
+    
+    def __repr__(self):
+        return f"Tool(name='{self.name}', description='{self.description}', result={self.result}, is_async={self.is_async}, args_schema={self.args_schema})"
 
 def tool(func):
     tool_obj = Tool(func=func, name=func.__name__, description=func.__doc__)

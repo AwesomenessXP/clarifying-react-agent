@@ -12,6 +12,10 @@ class MyClass:
 def hello_world(num_times: int, array: list[int] =[1,2,3]):
     """
     This will print Hello, World! num_times times.
+
+    Args:
+        num_times: The number of times hello world will run
+        array: A list of numbers
     """
     print("entering sync function")
     print("num times: ", num_times)
@@ -24,6 +28,11 @@ def hello_world(num_times: int, array: list[int] =[1,2,3]):
 async def async_hello_world(num_times: int, array: list[int] = [1,3], not_required: str = "default"):
     """
     This will asynchronously print Hello, World! num_times times.
+
+    Args:
+        num_times: The number of times hello world will run
+        array: A list of numbers
+        not_required: An input string
     """
     print("entering async function")
     print("num times: ", num_times)
@@ -36,12 +45,16 @@ async def async_hello_world(num_times: int, array: list[int] = [1,3], not_requir
 async def wrapped_async_in_async(num_times: int):
     """
     This will call an async function from a sync function.
+
+    Args:
+        num_times: The number of times hello world will run
     """
     print("entering async function that calls async function")
     result = await async_hello_world(num_times)
     return result
 
 async def main():
+    print("hello world arg schema: ", json.dumps(hello_world.args_schema, indent = 2))
     try:
         hello_world_result = hello_world(num_times=2)
     except Exception as e:
@@ -51,8 +64,7 @@ async def main():
     # - this is because tool_instance.__call__ is the underlying code of tool_instance()
     # - the tool instance returns a raw value, just like a normal function would!
     async_hello_world_result = await async_hello_world(num_times=2)
-    print("async_hello_world_result args schema: ", json.dumps(async_hello_world.args_schema, indent=2))
-    print("async_hello_world_result content: ", async_hello_world_result)
+    print("async_hello_world_result: ", async_hello_world_result)
 
     wrapped_async_result = await wrapped_async_in_async(num_times=2)
     print("wrapped_async_result: ", wrapped_async_result)
