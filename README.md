@@ -76,12 +76,12 @@ The engine follows a BSP (Bulk Synchronous Parallel) model with supersteps:
 - ✅ Add a max recursion limit
 - ✅ Save all states in a global list
 - ✅ Create compile() and validate the structure of the directed graph
+- ✅ Wrap tools in ToolNode and 
+    ✅ Parse each param's description from the docstring
+    ✅ Add the description to the args schema per param
 
 ### ☐ TODO
-
-- ☐ Wrap tools in ToolNode and add to_node obj to Message class for sending tool messages
-    ☐ Parse each param's description from the docstring
-    ☐ Add the description to the args schema per param
+- add to_node obj to Message class for sending tool messages
 - ☐ Begin integrating OpenAI API for agent
 - ☐ Test failure / retries
 
