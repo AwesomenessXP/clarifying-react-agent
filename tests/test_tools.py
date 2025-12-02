@@ -9,7 +9,7 @@ class MyClass:
         self.value = value
 
 @tool
-def weather_this_month(month: int):
+def weather_in_month(month: int):
     """
     This will print the weather this month
 
@@ -84,8 +84,8 @@ async def main():
     # Create a running input list we will add to over time
     input_list = [
         {"role": "user", "content": "Call the async tool call"},
-        {"role": "user", "content": "What is the weather this month?"}
+        {"role": "user", "content": "What is the weather in November?"}
     ]
-    await tool_call.run_tools([weather_this_month, async_hello_world], input_list)
+    await tool_call.run_tools([weather_in_month, async_hello_world], input_list)
 
 asyncio.run(main())
