@@ -204,7 +204,6 @@ class Tool:
                     desc = rest.strip()
 
                     if name == target_name:
-                        print(f"Description of {name}: {desc}")
                         return desc
                     
         if in_args is False:

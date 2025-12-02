@@ -2,8 +2,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import asyncio
 from react_agent.tool import tool
-from react_agent.tool_calling import OpenAITool
-import json
+from react_agent.tool_calling import OpenAIToolCall
 
 class MyClass:
     def __init__(self, value: int):
@@ -65,21 +64,28 @@ async def wrapped_async_in_async(num_times: int):
     return result
 
 async def main():
-    print("hello world arg schema: ", json.dumps(hello_world.args_schema, indent = 2))
-    try:
-        hello_world_result = hello_world(num_times=2)
-    except Exception as e:
-        print("Error calling hello_world: ", str(e))
+    tool_call = OpenAIToolCall()
 
-    # async_hello_world is NOT a funtion, but a Tool instance that behaves like a function
-    # - this is because tool_instance.__call__ is the underlying code of tool_instance()
-    # - the tool instance returns a raw value, just like a normal function would!
-    async_hello_world_result = await async_hello_world(num_times=2)
-    print("async_hello_world_result: ", async_hello_world_result)
+    # print("hello world arg schema: ", json.dumps(hello_world.args_schema, indent = 2))
+    # try:
+    #     hello_world_result = hello_world(num_times=2)
+    # except Exception as e:
+    #     print("Error calling hello_world: ", str(e))
 
-    wrapped_async_result = await wrapped_async_in_async(num_times=2)
-    print("wrapped_async_result: ", wrapped_async_result)
+    # # async_hello_world is NOT a funtion, but a Tool instance that behaves like a function
+    # # - this is because tool_instance.__call__ is the underlying code of tool_instance()
+    # # - the tool instance returns a raw value, just like a normal function would!
+    # async_hello_world_result = await async_hello_world(num_times=2)
+    # print("async_hello_world_result: ", async_hello_world_result)
 
-    OpenAITool.run_tools([weather_this_month])
+    # wrapped_async_result = await wrapped_async_in_async(num_times=2)
+    # print("wrapped_async_result: ", wrapped_async_result)
+
+    # Create a running input list we will add to over time
+    input_list = [
+        {"role": "user", "content": "Call the async tool call"},
+        {"role": "user", "content": "What is the weather this month?"}
+    ]
+    await tool_call.run_tools([weather_this_month, async_hello_world], input_list)
 
 asyncio.run(main())
